@@ -3,7 +3,7 @@
 Lexsi hackathon, Track 3 (Agentic Fine-tuning). Written 16 Nov 2026, 08:50 IST.
 **Hard deadline: 17:29 IST today** (Nov 15, 23:59 AoE). Target: submitted by ~15:00 IST.
 
-## 0. Status and decision log (last updated 14:35 IST)
+## 0. Status and decision log (last updated 15:35 IST)
 
 **Result.** On 400 held-out questions from companies never seen in training (3 runs each), task success is
 0.5% for base Tiny Aya, 25.2% after round 1, 30.4% after round 2 and **49.1% after round 3**. Round 3 is the
@@ -55,6 +55,7 @@ Total GPU spend **$18.05 of $20**. All GPU jobs are stopped.
 | 11:26 | Team | Purusharth Malik, single-member team. LLM usage stated plainly |
 | 11:50 | Round 2 gate HOLD | One confirmatory evaluation on 400 fresh held-out-company questions; the same rule applied once; its answer stands. The rule itself is not changed |
 | 12:40 | Going public | Yes: both HF repos, the two collections and the GitHub repo made public |
+| 15:35 | Write-up | Added a Related work section to the README (25 papers, each title and id checked against the arXiv API) and removed commit numbers from the README, because the README is also going into a Hugging Face article. AgentTune is now named by its version, 1.1.7; the exact commit stays in `infra/cmds/000_setup.sh` |
 | 10:09 | Gate rule | "Improve, never regress": success may not fall by more than 2 points; tool-call validity may not fall by more than 2 points; and either success or tool calls on tasks both models solve must improve with a 95% interval that excludes zero. Applied per round (v1 vs base, then final vs v1). AgentTune's `DeploymentGate` must also approve |
 
 **Changes I made while building, for your review**

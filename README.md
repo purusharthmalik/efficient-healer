@@ -121,7 +121,7 @@ the practical version of "small model, real work".
 
 ## Hackathon repos used
 
-### AgentTune (commit `8918cc3`)
+### AgentTune (1.1.7)
 - **Rollout loop**: `create_rollout_fn` runs every trajectory (prompting, the Aya tool-prompt fallback,
   tool-call parsing, tool execution). We plug in a custom `RolloutEngine` (`selfheal/engine.py`) that sends
   generation to a vLLM server, so AgentTune keeps the loop while generation is batched.
@@ -671,6 +671,92 @@ second student). What we would do next:
 student and a DPO stage, we expect held-out success to move from 49% to 60–65%, the share of tasks solved
 in all 3 runs from 36% to about 50%, and tool calls per solved run from 3.9 toward 3.5.
 
+## Related work
+
+No single part of this project is new. This section names the work each part comes from and says where we
+differ. It lists the work we know; it is not a systematic survey.
+
+**Training a model on its own verified outputs.** STaR
+([Zelikman et al., 2022](https://arxiv.org/abs/2203.14465)) samples rationales, keeps the ones that reach
+the right answer, fine-tunes and repeats. For problems the model fails, it retries with a hint. That is the
+closest ancestor of our loop. We differ in three ways: the unit is a multi-step tool trajectory, not a
+rationale; our hint is chosen by a failure label and never contains the answer, where STaR's hint is the
+answer itself; and a gate decides whether each round ships. Rejection-sampling fine-tuning
+([Yuan et al., 2023](https://arxiv.org/abs/2308.01825)) keeps many distinct correct samples per problem
+and finds that variety helps. We keep one, the shortest, because our target is cost as well as success; we
+did not test whether keeping several would be better. In reinforcement learning the same idea appears as
+self-imitation learning ([Oh et al., 2018](https://arxiv.org/abs/1806.05635)) and expert iteration
+([Anthony et al., 2017](https://arxiv.org/abs/1705.08439)), where a stronger expert makes targets for a
+cheaper policy and the improved policy feeds the next round.
+
+**Fine-tuning small models to be agents.** ReAct ([Yao et al., 2022](https://arxiv.org/abs/2210.03629))
+set the reason-then-act loop our agent runs. FireAct ([Chen et al., 2023](https://arxiv.org/abs/2310.05915)),
+AgentTuning ([Zeng et al., 2023](https://arxiv.org/abs/2310.12823)) and ToolLLM
+([Qin et al., 2023](https://arxiv.org/abs/2307.16789)) fine-tune open models on trajectories written by a
+stronger model, once. Toolformer ([Schick et al., 2023](https://arxiv.org/abs/2302.04761)) lets a model
+label its own tool calls and keeps the useful ones. Our round 1 is the same kind of teacher distillation
+([Hinton et al., 2015](https://arxiv.org/abs/1503.02531);
+[Hsieh et al., 2023](https://arxiv.org/abs/2305.02301)): 95% of its targets come from the teacher. What we
+add is the rounds after it, where the student's own verified runs replace the teacher's (62% of targets by
+round 3), and a count of how much teacher is still needed.
+
+**Repairing failures.** Reflexion ([Shinn et al., 2023](https://arxiv.org/abs/2303.11366)) feeds a
+written reflection on a failed attempt into the next attempt, without changing weights. Our hinted retry is
+a simpler form of this, and we then train the repaired run into the adapter so the hint is not needed at
+run time. Our result agrees with a limit of such feedback: hints repaired 0.5% of retries for the untrained
+model, which could not use them. DAgger ([Ross et al., 2010](https://arxiv.org/abs/1011.0686)) asks an
+expert to correct the states the learner actually reaches. Our teacher solves the failed task from the
+start instead, which is cheaper but teaches less about recovery. Our preference pairs are closer to
+DAgger: each sits at the first step where a failed run leaves a successful one.
+
+**Naming failures.** MAST ([Cemri et al., 2025](https://arxiv.org/abs/2503.13657)) builds a taxonomy of
+agent failure modes from annotated traces, and
+[Zhang et al. (2025)](https://arxiv.org/abs/2505.00212) show that finding the step that caused a failure
+automatically is hard even for strong models. We use AgentTune's five root causes and see the same
+weakness: our LLM labels agree with simple rules on 115 of 142 cases in round 1 and on 27 of 58 when the
+classifier's thinking is switched off. This is why the labels only choose hints and never enter a metric.
+
+**Where the loss goes.** [Shi et al. (2024)](https://arxiv.org/abs/2405.14394) report that putting loss on
+the instruction as well as the answer can help, mostly with long instructions, short answers and little
+data. Our data has that shape and we found the opposite: loss on all tokens gave 2.0% success, loss on the
+agent's turns gave 19.7%. A likely reason is what the extra tokens are. In our rows they are table data
+returned by tools, which the agent must read but never write.
+
+**Preference learning.** DPO ([Rafailov et al., 2023](https://arxiv.org/abs/2305.18290)) trains on pairs of
+a preferred and a rejected answer. It is normally applied to whole answers; we apply it to single agent
+steps.
+
+**Adapters and forgetting.** We train LoRA adapters ([Hu et al., 2021](https://arxiv.org/abs/2106.09685)).
+[Biderman et al. (2024)](https://arxiv.org/abs/2405.09673) find that LoRA forgets less of the base model
+than full fine-tuning. Our retention check fits that, on a small sample (100 items, round 2 adapter only).
+
+**Sampling several times.** Self-consistency ([Wang et al., 2022](https://arxiv.org/abs/2203.11171))
+samples several answers at run time and takes the majority. We sample k runs at training time for a
+different purpose: to measure how reliably a task is solved and to pick the cheapest correct run. The
+deployed agent runs once.
+
+**Deployment gates and statistics.** Releasing a model only after it beats the current one on held-out
+data is standard practice in production machine learning. AgentTune's
+[self-healing guide](https://agenttune.lexsi.ai/user-guide/self-healing/) describes the closed loop we
+follow (detect, classify, repair, retrain, gate). We changed two parts: repair produces whole verified
+trajectories, and the gate asks for an improvement whose interval excludes zero, where the shipped gate
+only asks for no regression. The intervals are paired bootstrap intervals
+([Koehn, 2004](https://aclanthology.org/W04-3250/)), resampled over tasks.
+
+**Task, benchmarks and models.** FinQA ([Chen et al., 2021](https://arxiv.org/abs/2109.00122)) introduced
+numerical questions over company financial reports. We use the tool-calling version shipped with AgentTune,
+where the agent queries the tables with SQL. The retention checks use GSM8K
+([Cobbe et al., 2021](https://arxiv.org/abs/2110.14168)), XSTest
+([Röttger et al., 2023](https://arxiv.org/abs/2308.01263)) and Global-MMLU
+([Singh et al., 2024](https://arxiv.org/abs/2412.03304)). The second student is Aya Expanse
+([Dang et al., 2024](https://arxiv.org/abs/2412.04261)).
+
+**What this project adds.** Three things together, measured on one small model: the *shortest* verified run
+as the training target, with an evidence guard so that "shortest" cannot mean "lucky"; repair that is
+directed by a failure label and checked by a verifier; and a gate that held twice when the evidence was
+thin. The idea of replaying the shortest correct sample is from our own earlier work (see the declaration
+below).
+
 ## Cost
 
 **Compute used.** Hugging Face Jobs, paid from the hackathon's $20 credit.
@@ -750,7 +836,7 @@ tools/               result tables and the publishing script for the further exp
 PLAN.md              the build log: every decision, measurement and change, with times
 ```
 
-Three Python environments, because their pins differ: AgentTune (`agenttune` at commit `8918cc3`),
+Three Python environments, because their pins differ: AgentTune (`agenttune` 1.1.7, pinned in the setup script),
 vLLM (`vllm>=0.30`, the first with Cohere support), AuditKIT (`auditkit[transformers,interop,jsonschema]==1.1.12`).
 `infra/cmds/000_setup.sh` builds all three. The steps then run in the order of `infra/cmds/`:
 setup, baseline evaluation, round 1 (collect, repair, train), round 2 (collect, repair, train), evaluation
