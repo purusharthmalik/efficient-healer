@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Print the last N lines of the GPU worker's log (the CLI's `hf jobs logs` hangs in this version).
 #   infra/logs.sh [N] [seconds-to-listen]
-JOB=${JOB:-$(grep -o '[0-9a-f]\{24\}' "$(dirname "$0")/.job_id.txt" | head -1)}
+JOB=${JOB:-$(grep -o '[0-9a-f]\{24\}' "$(dirname "$0")/.job_id${W:+_$W}.txt" | head -1)}
 N=${1:-40}
 SECS=${2:-12}
 T=$(cat ~/.cache/huggingface/token)

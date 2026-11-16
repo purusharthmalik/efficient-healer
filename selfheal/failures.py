@@ -78,9 +78,23 @@ def _context(rec: dict) -> dict:
     }
 
 
-def classify_with_agenttune(failed: list[dict], model: str, api_base: str, batch: int = 32) -> list[dict]:
+def classify_with_agenttune(failed: list[dict], model: str, api_base: str, batch: int = 32,
+                            thinking: bool = True) -> list[dict]:
     from agenttune.decide.closed_loop.contracts import Failure
     from agenttune.decide.closed_loop.failure_classifier import FailureClassifier
+
+    if not thinking:
+        # The classifier calls litellm.acompletion with fixed arguments; add the server-side switch
+        # that turns the teacher's thinking off, which makes labelling several times faster.
+        import functools
+
+        import litellm
+
+        if not getattr(litellm.acompletion, "_selfheal_patched", False):
+            patched = functools.partial(litellm.acompletion,
+                                        extra_body={"chat_template_kwargs": {"enable_thinking": False}})
+            patched._selfheal_patched = True
+            litellm.acompletion = patched
 
     os.environ.setdefault("OPENAI_API_KEY", "unused")
     clf = FailureClassifier(model_name=model, api_base=api_base)
@@ -107,7 +121,7 @@ def classify_with_agenttune(failed: list[dict], model: str, api_base: str, batch
 
 
 def label_failures(recs: list[dict], model: str | None, api_base: str | None, per_task: int = 2,
-                   never_only: bool = False) -> dict:
+                   never_only: bool = False, thinking: bool = True) -> dict:
     failed = [r for r in recs if not sh(r)["success"]]
     rows = {r["trajectory_id"]: {"trajectory_id": r["trajectory_id"], "task_id": sh(r)["task_id"],
                                  "rule_label": rule_label(r)} for r in failed}
@@ -122,7 +136,7 @@ def label_failures(recs: list[dict], model: str | None, api_base: str | None, pe
             if seen[sh(r)["task_id"]] < per_task:
                 seen[sh(r)["task_id"]] += 1
                 subset.append(r)
-        for c in classify_with_agenttune(subset, model, api_base):
+        for c in classify_with_agenttune(subset, model, api_base, thinking=thinking):
             rows[c["trajectory_id"]].update(c)
 
     labelled = [r for r in rows.values() if r.get("llm_confidence", 0) > 0]
@@ -165,7 +179,8 @@ if __name__ == "__main__":
     ap.add_argument("--api-base", default="http://127.0.0.1:8001/v1")
     ap.add_argument("--per-task", type=int, default=2)
     ap.add_argument("--never-only", action="store_true", help="LLM-label only tasks with no success")
+    ap.add_argument("--no-thinking", action="store_true", help="turn the classifier model's thinking off")
     a = ap.parse_args()
-    result = label_failures(load(a.paths), a.model, a.api_base, a.per_task, a.never_only)
+    result = label_failures(load(a.paths), a.model, a.api_base, a.per_task, a.never_only, not a.no_thinking)
     Path(a.out).write_text(json.dumps(result, indent=1))
     print(json.dumps(result["stats"], indent=2))

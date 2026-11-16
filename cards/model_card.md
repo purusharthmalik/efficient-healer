@@ -21,7 +21,7 @@ datasets:
 
 A LoRA adapter (r=16) for [`CohereLabs/tiny-aya-global`](https://huggingface.co/CohereLabs/tiny-aya-global)
 that turns it into a tool-calling agent for questions about company financial tables (FinQA). It was
-produced by a two-round self-healing loop built on **AgentTune** and evaluated with **AuditKIT**, for the
+produced by a three-round self-healing loop built on **AgentTune** and evaluated with **AuditKIT**, for the
 Lexsi Labs hackathon, Track 3 (Agentic Fine-tuning).
 
 - Code and full write-up: [github.com/purusharthmalik/efficient-healer](https://github.com/purusharthmalik/efficient-healer)
@@ -32,41 +32,43 @@ Lexsi Labs hackathon, Track 3 (Agentic Fine-tuning).
 
 | Folder | What | Status |
 |---|---|---|
-| repository root | The adapter the deployment gate approved | = `round2/`. Deployed after a confirmatory evaluation on 400 held-out tasks |
-| `round1/` | Round 1: trained on teacher repairs of the tasks base Tiny Aya could not solve | passed the gate against base Tiny Aya (0.5% → 25.2% success) |
-| `round2/` | Round 2: trained from the base model on the round 1 adapter's own shortest verified runs plus repairs | held by the gate on a 100-task set, passed on the 400-task confirmation (25.2% → 30.4%) |
+| repository root | The adapter the deployment gate approved | = `round3/` |
+| `round1/` | Round 1: teacher repairs of the tasks base Tiny Aya could not solve (480-task pool) | passed its gate against base Tiny Aya (0.5% → 25.2%) |
+| `round2/` | Round 2: the round 1 adapter's own shortest verified runs plus repairs (480-task pool) | held on a 100-task set, passed on a 400-task confirmation (25.2% → 30.4%) |
+| `round3/` | Round 3: the same loop from the round 2 adapter on a 1,400-task pool | passed its gate on a fresh 400-task set (26.2% → 46.4%) |
+| `round2_dpo/`, `round3_dpo/` | DPO on step-level preference pairs. **Not standalone**: each is a second LoRA that goes on top of the merged round 2 or round 3 model | experiments |
 | `negative_all_token_loss/` | First attempt, loss on all tokens. Solves 2% of held-out runs. Kept as a negative result | not for use |
 
-`deployed.json` records the gate's choice.
+`deployed.json` records the gate's choice. A sibling adapter for the larger student is at
+[`Purusharth/aya-expanse-8b-efficient-healer-lora`](https://huggingface.co/Purusharth/aya-expanse-8b-efficient-healer-lora).
 
 ## Results
 
 400 held-out questions from 55 companies never seen in training, 3 runs each, harness stop rule on.
 Success is decided by a numeric verifier, not a judge model.
 
-| Metric | Base Tiny Aya | Round 1 adapter | Final adapter |
-|---|---|---|---|
-| Rollouts solved (tolerant) | 6 of 1200 (0.5%) | 302 of 1200 (25.2%) | 365 of 1200 (30.4%) |
-| Rollouts solved (strict) | 0.3% | 15.0% | 17.6% |
-| Tasks solved in all 3 runs | 0 of 400 | 35 of 400 | 61 of 400 |
-| Tasks solved in at least 1 run | 6 of 400 | 168 of 400 | 187 of 400 |
-| Tool calls per run | 2.88 | 4.65 | 4.47 |
-| Tool calls per solved run | 2.00 | 4.09 | 4.01 |
-| Output tokens per run | 221 | 239 | 215 |
-| Seconds per run | 5.1 | 5.8 | 5.5 |
-| Runs with no `<answer>` tag | 505 of 1200 | 183 of 1200 | 117 of 1200 |
+| Metric | Base Tiny Aya | Round 1 | Round 2 | Round 3 (root) |
+|---|---|---|---|---|
+| Runs solved | 0.5% | 25.2% | 30.4% | **49.1%** |
+| Runs solved, strict exact match | 0.3% | 15.0% | 17.6% | **29.8%** |
+| Tasks solved in all 3 runs | 0 of 400 | 35 of 400 | 61 of 400 | **143 of 400** |
+| Tool calls per run | 2.88 | 4.65 | 4.47 | 4.32 |
+| Output tokens per run | 221 | 239 | 215 | 210 |
+| Redundant tool-call rate (AuditKIT) | 0.126 | 0.108 | 0.069 | **0.051** |
+| Loop-free share (AuditKIT) | 0.761 | 0.805 | 0.818 | **0.893** |
 
-- Base → final adapter: success +29.9 points, 95% paired bootstrap interval [+26.2, +33.7].
-- Round 1 → final adapter: success +5.2 points [+2.5, +8.1]; redundant tool-call rate 0.108 → 0.069
-  (AuditKIT); output tokens per run −24 [−34, −15].
-- On the first held-out set (100 tasks × 3), without any harness stop rule: base 0 of 300 runs solved,
-  final adapter 75 of 300; output tokens per run 620 → 213.
+- Round 2 → round 3: success +18.7 points, 95% paired bootstrap interval [+15.2, +22.4]. On a second
+  held-out set of 400 fresh questions, used for the round 3 gate: 26.2% → 46.4%, +20.2 points [+16.8, +23.7].
+- Retention and safety (AuditKIT, 100 samples each, round 2 adapter vs base): GSM8K 0.71 → 0.67
+  (−0.04 [−0.12, +0.05]); XSTest refusal of unsafe prompts 0.94 → 0.94; over-refusal of safe prompts
+  0.06 → 0.06. Multilingual ability was not measured, and round 3 was not re-checked.
 
 Full tables, intervals and negative results are in the write-up.
 
 ## How it was made
 
-1. Roll out the current model 4 times on each of 480 train-pool tasks (AgentTune rollout loop, FinQA tools).
+1. Roll out the current model 4 times on each train-pool task (480 tasks in rounds 1 and 2, 1,400 in round 3;
+   AgentTune rollout loop, FinQA tools).
 2. Bucket each task: always solved, sometimes solved, never solved.
 3. Always or sometimes solved: keep the shortest verified run.
 4. Never solved: label the failure (rules + AgentTune `FailureClassifier`), retry with a hint chosen by the
@@ -103,7 +105,7 @@ The system prompt and the four tools are defined in `selfheal/tasks.py`.
 
 ## Limits
 
-- Research artifact. About seven in ten held-out runs still fail; do not use it for real financial decisions.
+- Research artifact. About half of held-out runs still fail; do not use it for real financial decisions.
 - English FinQA-style questions over the bundled tables only. Other languages, other schemas and general
   chat were not evaluated after fine-tuning, and neither was safety behaviour.
 - Non-commercial: the base model is CC-BY-NC-4.0, and so is this adapter.

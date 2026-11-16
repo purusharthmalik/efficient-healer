@@ -53,8 +53,14 @@ def prepare_data() -> tuple[list[dict], list[dict]]:
 
 
 def make_tools() -> list:
-    """A fresh tool set with its own database handle (one per worker thread)."""
+    """The four FinQA tools. Builds the database first if this machine does not have it yet:
+    a missing file would otherwise become an empty database, and every lookup would
+    return "No tables found" without any error."""
+    if not DB_PATH.exists() or DB_PATH.stat().st_size < 1_000_000:
+        prepare_data()
     db_tool = SQLDatabaseTool(f"sqlite:///{DB_PATH.resolve()}")
+    listing = db_tool.list_tables()
+    assert listing.success and str(listing.output or "").strip(), "FinQA database is empty"
     list_tables, get_table_schema, query_finqa_tables = build_finqa_tools(db_tool)
     return [list_tables, get_table_schema, query_finqa_tables, calculator]
 

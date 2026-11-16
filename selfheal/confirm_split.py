@@ -21,6 +21,7 @@ if __name__ == "__main__":
     ap.add_argument("--n", type=int, default=400)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", default="out/splits_confirm.json")
+    ap.add_argument("--exclude", nargs="*", default=[], help="earlier fresh sets whose questions must not be reused")
     a = ap.parse_args()
 
     splits = json.loads(Path(a.splits).read_text())
@@ -34,6 +35,10 @@ if __name__ == "__main__":
 
     used_ids = {r["task_id"] for r in splits["eval"]}
     used_questions = {r["question"] for r in splits["eval"]} | {r["question"] for r in splits["pool"]}
+    for path in a.exclude:
+        earlier = json.loads(Path(path).read_text())["confirm"]
+        used_ids |= {r["task_id"] for r in earlier}
+        used_questions |= {r["question"] for r in earlier}
     fresh = [r for r in train + val
              if r["company"] in held_out and r["task_id"] not in used_ids and r["question"] not in used_questions]
     seen, unique = set(), []

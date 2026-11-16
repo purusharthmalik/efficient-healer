@@ -3,12 +3,14 @@
 Lexsi hackathon, Track 3 (Agentic Fine-tuning). Written 16 Nov 2026, 08:50 IST.
 **Hard deadline: 17:29 IST today** (Nov 15, 23:59 AoE). Target: submitted by ~15:00 IST.
 
-## 0. Status and decision log (last updated 12:25 IST)
+## 0. Status and decision log (last updated 14:35 IST)
 
 **Result.** On 400 held-out questions from companies never seen in training (3 runs each), task success is
-0.5% for base Tiny Aya, 25.2% after round 1 and **30.4% after round 2**. The round 2 adapter is the deployed
-one: the gate held it on the first 100-task set and released it on a pre-declared 400-task confirmation.
-GPU spend **$8.57 of $20**. The GPU job is stopped.
+0.5% for base Tiny Aya, 25.2% after round 1, 30.4% after round 2 and **49.1% after round 3**. Round 3 is the
+deployed adapter: its gate passed on a fresh 400-task set (26.2% → 46.4%). Further experiments the same
+day: Aya Expanse 8B on the round 2 data reaches 38.9%; DPO adds about 5 points to round 2 and is held by
+the gate on round 3; the adapter does not measurably change GSM8K or XSTest behaviour.
+Total GPU spend **$18.05 of $20**. All GPU jobs are stopped.
 
 **Status**
 
@@ -16,17 +18,17 @@ GPU spend **$8.57 of $20**. The GPU job is stopped.
 |---|---|---|
 | 0 Setup | done | HF Jobs worker, three environments |
 | 1 Smoke and pilot | done | Base Tiny Aya near 0%; teacher 82.5% on the pilot |
-| 2 Collect | done | Two rounds of 480 tasks × 4 |
+| 2 Collect | done | Three rounds: 480, 480 and 1,400 tasks × 4 |
 | 3 Classify and repair | done | Rules + AgentTune classifier, hinted retries, teacher |
-| 4 Train | done | Three LoRAs: all-token loss (failed, kept), round 1, round 2 |
-| 5 Evaluate and gate | done | AuditKIT on 100 + 400 held-out tasks; round 1 DEPLOY, round 2 HOLD then DEPLOY on confirmation |
-| 6 Ship | public, form pending | Both HF repos, both collections and the GitHub repo are public (your yes at 12:40 IST). Only the submission form is left, and it is yours to send |
+| 4 Train | done | Five LoRAs (all-token loss failed and kept; rounds 1, 2, 3; Aya Expanse 8B) and two DPO runs |
+| 5 Evaluate and gate | done | AuditKIT on three held-out sets; gates: round 1 DEPLOY, round 2 HOLD then DEPLOY on confirmation, round 3 DEPLOY, DPO on round 2 DEPLOY, DPO on round 3 HOLD |
+| 6 Ship | public, resubmission pending | Everything is public and updated for round 3. **The form must be submitted again**: title, claim and abstract changed |
 
-**What is left (12:45 IST)**
+**What is left (14:35 IST)**
 
 | Step | Who |
 |---|---|
-| Fill the form at `hackathon.lexsi.ai/submission` from `SUBMISSION.md`, with your registered email | you, before 17:29 IST |
+| Submit the form again at `hackathon.lexsi.ai/submission` from `SUBMISSION.md` (title, claim and abstract changed) | you, before 17:29 IST |
 | Optional: paste `README.md` into a Hugging Face article | you |
 
 **Decisions made by you**
@@ -144,6 +146,7 @@ GPU spend **$8.57 of $20**. The GPU job is stopped.
 **Public links (since 12:42 IST)**
 - Model repo: https://huggingface.co/Purusharth/tiny-aya-efficient-healer-lora
 - Dataset repo: https://huggingface.co/datasets/Purusharth/efficient-healer-trajectories
+- Second model repo (Aya Expanse 8B adapter): https://huggingface.co/Purusharth/aya-expanse-8b-efficient-healer-lora
 - Model collection: https://huggingface.co/collections/Purusharth/efficient-healer-models-6afaa8b6120d5e7cae162d33
 - Dataset collection: https://huggingface.co/collections/Purusharth/efficient-healer-datasets-6afaa8b70386ac5f12a8f637
 - Code and write-up: https://github.com/purusharthmalik/efficient-healer
@@ -179,6 +182,58 @@ GPU spend **$8.57 of $20**. The GPU job is stopped.
 - **Teacher pilot (Qwen3.6-35B NVFP4, thinking off), same 20 tasks × 2:** 35 of 40 rollouts solved (87.5%); 19 of 20 tasks have at least one success; 5.5 tool calls per successful run; about 100 rollouts/min. All 35 successes convert into valid rows in Tiny Aya's call format and pass the evidence guard.
 
 **Spend (final)**: L40S 37 min = $1.10. RTX PRO 6000 from 09:26 to 12:08 IST = 2 h 43 min at $2.75/h = $7.47. Total **$8.57**; about $11.40 of credit left.
+
+## 0b. Exploration after the submission was ready (started 12:29 IST)
+
+You asked to use the remaining time and credit to explore, and picked all four directions. They run on two
+GPU jobs side by side (same cost per minute of work, half the wall-clock time). Hard timeouts cap the
+total at $10.31 of the $11.43 left.
+
+| Job | Order | What | Status |
+|---|---|---|---|
+| A (2 h cap, ends 14:29 IST at the latest) | 1 | **Round 3 on a bigger pool**: pool grown from 480 to 1,400 tasks; collect with the round 2 adapter, repair, train round 3, gate it against round 2 on a second fresh held-out set (B, 400 tasks) | collecting |
+| B (1 h 45 cap, ends 14:14 IST at the latest) | 1 | **Aya Expanse 8B as the student**, trained on the same round 2 training set, evaluated on the 400-task confirmatory set | training |
+| B | 2 | **Retention and safety check** with AuditKIT: GSM8K, Global-MMLU in 5 languages, XSTest refusal and over-refusal; base Tiny Aya vs the deployed adapter | queued |
+| B | 3 | **DPO** on 480 of 887 step-level preference pairs, on top of the round 2 adapter, with AgentTune's agentic DPO trainer. Best effort: it is the least tested path and runs last | queued |
+
+Choices I made inside these (tell me if you want any changed):
+- Round 3's failure classifier runs with the teacher's thinking off, to save about 10 minutes. Rounds 1 and 2 had it on.
+- The round 3 gate uses a new fresh set (B), not the confirmatory set, so no test set is reused for a decision. Round 3 is also run on the confirmatory set so its number can sit next to the published 30.4%.
+- DPO pairs are step-level: the prompt is the conversation up to the first agent turn where a failed run leaves the verified run; chosen and rejected are that one turn. 887 pairs from 392 tasks (297 at the table choice, 519 at the query step).
+- **Void result, caught 13:10 IST:** the first Aya Expanse numbers on job B (untrained 0 of 300, fine-tuned 2 of 1,200) are invalid. Job B never built the FinQA database, so every `list_tables` call returned "No tables found". The tools now build the database themselves and refuse to run on an empty one. The Expanse evaluation is rerunning. Job A built its database and is not affected.
+- Round 3 collection on job A (valid): the round 2 adapter solves 1,650 of 5,600 rollouts (29.5%) on the 1,400-task pool: 170 always, 493 sometimes, 737 never. On the second fresh held-out set (B) it solves 314 of 1,200 (26.2%).
+
+**Results so far**
+- **Retention and safety check (AuditKIT, 100 samples each, base vs round 2 adapter), 13:28 IST:** GSM8K 0.71 → 0.67 (−0.04 [−0.12, +0.05], no significant change). XSTest refusal of unsafe prompts 0.94 → 0.94. XSTest over-refusal of safe prompts 0.06 → 0.06. Global-MMLU in 5 languages scored 0.05 for both, below the 25% chance level, so its answer extraction failed and it is not a measurement. The check took 17 minutes because AuditKIT's API backend sends requests one at a time.
+- **Round 3 repair (job A), 13:28 IST:** hinted retries repaired 87 of 737 never-solved tasks (115 of 2,948 retries solved). Teacher on the 500 tasks still without a verified run: 806 of 1,500 solved, 303 tasks covered. **Round 3 training set: 1,203 rows** — 170 efficiency (3.74 calls), 493 reliability (3.88), 87 hint repairs (3.91), 453 teacher repairs (4.24). 197 of 1,400 tasks have no verified run. Classifier: 737 labelled, 7 errors; rule and LLM labels agree on 27 of 58 comparable cases. AgentTune's trigger fired. Training started 13:28 IST.
+
+- **Aya Expanse 8B as the student (valid rerun), 13:33 IST:** LoRA trained on the same round 2 set (402 rows, 24 minutes, loss 0.58 → 0.053). On the 400-task confirmatory set: **467 of 1,200 solved (38.9%)**, strict 21.4%, 85 tasks solved in all 3 runs, 4.05 tool calls per run. Against the Tiny Aya round 2 adapter (30.4%): +8.5 points, 95% interval [+4.5, +12.6]. Untrained Expanse on the first 100 of those tasks: 0 of 300. So the loop's data transfers to a second Cohere student, and capacity is part of Tiny Aya's limit.
+- **DPO on top of the round 2 adapter, 13:52 IST:** AgentTune's agentic DPO trainer, 480 step-level pairs, 120 steps, 11.5 minutes, lr 2e-5, β 0.1, LoRA r=8; loss 0.693 → 0.64. On the 400-task confirmatory set: **429 of 1,200 solved (35.8%)**, strict 20.8%, 89 tasks solved in all 3 runs (round 2: 61). Against round 2: +5.3 points, 95% interval [+2.4, +8.2]; gate DEPLOY. Tool calls per run rose from 4.47 to 4.71, and tool calls on tasks both solve did not improve (interval [0.00, +0.20]).
+- **Clean re-test on the second fresh set (B, 400 tasks × 3, never used for a decision), 14:01 IST:**
+
+  | Model | Rollouts solved | vs round 2 adapter [95% interval] |
+  |---|---|---|
+  | Tiny Aya, round 2 adapter | 314 of 1,200 (26.2%) | — |
+  | Tiny Aya, round 2 + DPO | 358 of 1,200 (29.8%) | +3.7 points [+1.1, +6.3]; gate DEPLOY |
+  | Aya Expanse 8B, LoRA on the round 2 set | 438 of 1,200 (36.5%) | +10.3 points [+6.7, +13.9] |
+
+  - DPO buys success, not efficiency: on both sets it uses more tool calls per run (+0.20 to +0.24), slightly more on tasks both models solve (+0.05 to +0.21 on set B), and its loop-free share drops (0.83 → 0.79 on set B).
+  - Expanse is both better and leaner than Tiny Aya on the same data: 4.04 tool calls per run against 4.45 (−0.42 [−0.54, −0.30]), redundant-call rate 0.021 against 0.069, loop-free share 0.94 against 0.83.
+- **Round 3 adapter (1,400-task pool), 14:07 IST.** Trained on 1,142 rows (61 over-long rows dropped) in 34 minutes. On the fresh held-out set B: **557 of 1,200 solved (46.4%)**, strict 26.0%, 134 tasks solved in all 3 runs, 4.31 tool calls per run. Against the round 2 adapter on the same set (26.2%, 53 tasks): **+20.2 points, 95% interval [+16.8, +23.7]. Gate DEPLOY.** Tool calls on tasks both solve: no change ([−0.07, +0.09]). More data through the same loop was the main bottleneck.
+- Queued as job A's last step: DPO on top of round 3 (320 pairs, time-boxed to fit before the 14:29 IST timeout).
+- **Job B stopped at 14:02 IST** after 92 minutes ($4.23). Its adapters (Expanse, DPO) are saved in the private ops repo.
+
+- **Round 3 on the confirmatory set (A), 14:11 IST:** 589 of 1,200 solved (49.1%), strict 29.8%, 143 tasks solved in all 3 runs. Against round 2 on the same set: +18.7 points [+15.2, +22.4]; tool calls on the 173 tasks both solve −0.16 [−0.25, −0.08]; redundant-call rate 0.069 → 0.051; loop-free share 0.818 → 0.893.
+
+**Your decisions on the exploration results (14:12 IST)**
+- Publish everything: round 3 becomes the deployed adapter at the root of the Tiny Aya repo; the Expanse adapter gets its own public repo in the model collection; DPO adapters go in folders; all exploration data goes into the dataset repo.
+- The write-up leads with round 3 (0.5% → 49.1% in three rounds); the two-round story and the gate HOLD stay in the body; Expanse, DPO and the retention check are a "further experiments" section.
+
+- **DPO on top of round 3, 14:24 IST:** 320 of 2,158 pairs, 8 minutes, loss 0.693 → 0.691. Set B: 582 of 1,200 (48.5%) against round 3's 557 (46.4%): +2.1 points [−0.3, +4.3]. **Gate HOLD.** Round 3 stays deployed.
+- **Both exploration jobs stopped.** Job A ran 1 h 55 min ($5.25), job B 1 h 32 min ($4.23). Exploration total $9.48; project total $18.05; about $1.95 of credit left.
+- **Published 14:30 IST:** round 3 adapter at the root of the Tiny Aya repo (verified identical to `round3/`), DPO adapters in `round2_dpo/` and `round3_dpo/`, the Expanse adapter in its own public repo and in the model collection, 107 exploration files (810 MB) in the dataset repo, three cards updated. Secret scan of the new uploads and the code: nothing found.
+
+Lost time: about 4 GPU-minutes on each job. The Hub rejects file paths containing `/x00`, which silently refused my bootstrap step's name; the submit script now verifies every upload and retries.
 
 ## 1. The claim we want to prove
 

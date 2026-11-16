@@ -18,9 +18,10 @@ pretty_name: Efficient Healer trajectories
 
 # Efficient Healer: trajectories, failure labels, training sets and evaluation logs
 
-Everything produced by the two-round self-healing run behind
+Everything produced by the three-round self-healing run behind
 [`Purusharth/tiny-aya-efficient-healer-lora`](https://huggingface.co/Purusharth/tiny-aya-efficient-healer-lora),
-a LoRA that turns `CohereLabs/tiny-aya-global` into a finance database agent. Code and write-up:
+a LoRA that turns `CohereLabs/tiny-aya-global` into a finance database agent, and its sibling
+[`Purusharth/aya-expanse-8b-efficient-healer-lora`](https://huggingface.co/Purusharth/aya-expanse-8b-efficient-healer-lora). Code and write-up:
 [github.com/purusharthmalik/efficient-healer](https://github.com/purusharthmalik/efficient-healer).
 
 Built for the Lexsi Labs hackathon, Track 3 (Agentic Fine-tuning), with AgentTune and AuditKIT.
@@ -28,15 +29,16 @@ Built for the Lexsi Labs hackathon, Track 3 (Agentic Fine-tuning), with AgentTun
 ## Headline
 
 On 400 held-out questions from companies never seen in training (3 runs each), task success goes from
-0.5% (base Tiny Aya) to 25.2% (round 1 adapter) to 30.4% (final adapter). All 15,000 student runs and
-1,600 teacher runs behind that are here, successes and failures alike.
+0.5% (base Tiny Aya) to 25.2% (round 1), 30.4% (round 2) and 49.1% (round 3). Every student and teacher
+run behind that is here, successes and failures alike, together with the further experiments
+(Aya Expanse 8B as the student, DPO, a retention and safety check).
 
 ## What is here
 
 | Path | Contents |
 |---|---|
 | `splits.json` | The 480 train-pool tasks and 100 held-out tasks (FinQA), company-disjoint |
-| `splits_confirm.json` | 400 more held-out tasks from the same 55 held-out companies, used once for confirmation |
+| `splits_confirm.json` | Held-out set A: 400 more held-out tasks from the same 55 held-out companies, used to confirm the round 2 gate |
 | `round1/student.jsonl` | Base Tiny Aya, 480 tasks × 4 rollouts |
 | `round1/failures.json` | Failure labels: rule label and AgentTune `FailureClassifier` root cause |
 | `round1/repair/` | Hint chosen for every failing task |
@@ -46,6 +48,15 @@ On 400 held-out questions from companies never seen in training (3 runs each), t
 | `round1/dataset/preference_pairs.jsonl` | The same repairs as (prompt, chosen, rejected), ready for DPO |
 | `round1/dataset/agenttune_loop.json` | AgentTune `FailureDetector` and `RetrainingTrigger` output |
 | `round2/…` | The same files for round 2, where the student is the round 1 adapter |
+| `round3/…` | The same files for round 3, where the student is the round 2 adapter and the pool has 1,400 tasks |
+| `splits_pool1400.json` | The round 3 pool (the 480 earlier tasks are its first 480) |
+| `splits_heldout_B.json` | Held-out set B: 400 fresh questions used for the round 3 gate |
+| `eval/setB_*.jsonl`, `eval/confirm_r3.jsonl` | Round 2 and round 3 adapters, Aya Expanse and DPO on sets A and B |
+| `eval/gate_round3.json`, `eval/gate_dpo*.json` | Gate decisions for round 3 and for DPO |
+| `exploration/dpo_on_round2/pairs.jsonl`, `exploration/dpo_on_round3/pairs.jsonl` | Step-level preference pairs: conversation prefix, chosen turn, rejected turn |
+| `exploration/retention/report.json` | AuditKIT retention and safety check (GSM8K, XSTest, Global-MMLU) |
+| `exploration/void_expanse_run_without_database/` | A void evaluation, kept for transparency: the FinQA database was missing, so every lookup failed |
+| `worker_logs_exploration/` | Console logs of the two exploration jobs |
 | `eval/*.jsonl` | Held-out rollouts (100 tasks × 3) for the base model and both adapters, with and without the harness stop rule |
 | `eval/confirm_*.jsonl` | The confirmatory evaluation: 400 tasks × 3 for the base model and both adapters |
 | `eval/cmp_*/` | AuditKIT results and paired-bootstrap comparisons for every pair of models |
