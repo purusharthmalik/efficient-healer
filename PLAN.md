@@ -3,7 +3,7 @@
 Lexsi hackathon, Track 3 (Agentic Fine-tuning). Started at 08:50 IST.
 **Hard deadline: 17:29 IST today** (Nov 15, 23:59 AoE). Target: submitted by ~15:00 IST.
 
-## 0. Status and decision log (last updated 16:40 IST)
+## 0. Status and decision log (last updated 16:45 IST)
 
 **Result.** On 400 held-out questions from companies never seen in training (3 runs each), task success is
 0.5% for base Tiny Aya, 25.2% after round 1, 30.4% after round 2 and **49.1% after round 3**. Round 3 is the
@@ -61,6 +61,7 @@ Total GPU spend **$18.05 of $20**. All GPU jobs are stopped.
 | 15:58 | Write-up shortened | User asked for a clean, simple write-up: threat model removed; abstract cut from 380 to 218 words (SUBMISSION.md updated to match); related work and method turned into tables; findings cut to 8 and negative results to 8 one-liners; the Discussion section and the paper list dropped (papers are linked in Related work); detailed round 1 and 2 tables moved to the appendix. README went from about 13,000 to about 9,800 words. No result changed |
 | 16:27 | Article published; README synced to it | The write-up is live at https://huggingface.co/blog/Purusharth/efficient-healer with a thumbnail. The user made five edits there (declaration shortened, LinkedIn added, two sentences and "(same day)" removed); the README now carries the same text. Checked word by word: no other difference |
 | 16:40 | Date removed | User asked for the calendar date to be removed everywhere: taken out of the README, this file and two code comments. The article needs the same one-line edit by hand |
+| 16:45 | Declaration wording | User decision: this file now carries the same declaration as the article and README (no code, data or weights from any previous work) |
 | 10:09 | Gate rule | "Improve, never regress": success may not fall by more than 2 points; tool-call validity may not fall by more than 2 points; and either success or tool calls on tasks both models solve must improve with a 95% interval that excludes zero. Applied per round (v1 vs base, then final vs v1). AgentTune's `DeploymentGate` must also approve |
 
 **Changes I made while building, for your review**
@@ -276,14 +277,14 @@ FinQA tasks ──► k=4 rollouts each (AgentTune rollout + FinQA tools + numer
    gate (AgentTune DeploymentGate + our rule) ─► promote to `main`, or hold and report why
 ```
 
-What carries over from our A-DLP work (ideas only, no code; see §9):
-- **Shortest finished correct sample is the length target** (`L_min`). Here: the fewest tool calls, then the
+Design rules for choosing targets:
+- **Shortest finished correct sample is the length target.** Here: the fewest tool calls, then the
   fewest tokens, among verified successes.
-- **Length pressure only where success is reliable** (the `p̂²` factor). Here: only 4/4 tasks feed the
+- **Length pressure only where success is reliable.** Here: only 4/4 tasks feed the
   "efficiency" set.
-- **Hitting the cap is a failure** (`TRUNC_AS_WRONG`). Here: reaching `max_steps` counts as unsolved.
+- **Hitting the cap is a failure.** Here: reaching `max_steps` counts as unsolved.
 - **Never rank failures by length.** A short wrong run is not a target. It would teach giving up early.
-- **Gate with a margin** (`acc_ref − m`). Here: the deployment gate.
+- **Gate with a margin.** Here: the deployment gate.
 
 Guard against the obvious cheat: a kept trajectory must contain at least one tool call that returned
 without error. Otherwise "shortest success" can select a lucky answer with no evidence.
@@ -440,9 +441,8 @@ anything is made public.
 - The gate may fail. That is a valid, reportable result ("what didn't work"), and the pipeline still stands.
 - 50–100 held-out tasks give wide intervals. We report intervals, not just point values.
 
-**Declaration for the write-up.** The idea of replaying the shortest correct sample was noted in our earlier
-A-DLP length-penalty work (October 2026, math reasoning, a different model and codebase). No code or data
-from it is used; everything in this repo is written during the hackathon.
+**Declaration for the write-up.** No code, data or weights from any previous work are used; everything in
+this repo is written during the hackathon.
 
 **Licences.** AgentTune and AuditKIT are source-available for non-commercial use (LSAL). Tiny Aya is
 CC-BY-NC-4.0. AgentTune's licence asks for a safety re-check before deploying a post-trained model; if time
