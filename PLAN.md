@@ -3,7 +3,7 @@
 Lexsi hackathon, Track 3 (Agentic Fine-tuning). Written 16 Nov 2026, 08:50 IST.
 **Hard deadline: 17:29 IST today** (Nov 15, 23:59 AoE). Target: submitted by ~15:00 IST.
 
-## 0. Status and decision log (last updated 15:55 IST)
+## 0. Status and decision log (last updated 16:05 IST)
 
 **Result.** On 400 held-out questions from companies never seen in training (3 runs each), task success is
 0.5% for base Tiny Aya, 25.2% after round 1, 30.4% after round 2 and **49.1% after round 3**. Round 3 is the
@@ -58,6 +58,7 @@ Total GPU spend **$18.05 of $20**. All GPU jobs are stopped.
 | 15:35 | Write-up | Added a Related work section to the README (25 papers, each title and id checked against the arXiv API) and removed commit numbers from the README, because the README is also going into a Hugging Face article. AgentTune is now named by its version, 1.1.7; the exact commit stays in `infra/cmds/000_setup.sh` |
 | 15:45 | Write-up layout | README reordered to the hackathon's recommended write-up layout (the list the user sent). Added the sub-sections it names and that we had numbers for: problem-statement numbers, content warning, research questions, the pre-registered hypotheses with outcomes (H1 could not be tested cleanly, H2 and H3 met), threat model, teacher rationale, data licences, "should not get worse" metrics, judge check, per-kit setup, seeds, ablation table, before/after table, one sample run, discussion, author contributions, references, changelog, appendix with prompts. No result changed |
 | 15:55 | H1 outcome wording | User decision: H1 is reported as "could not be tested cleanly", because the base model solved only 6 of 1,200 runs, so almost no task is solved by both models. The adapter-to-adapter number (3 to 4% at best, against the 15% target) stays in the same cell and in Findings 3 and 10 |
+| 16:05 | Write-up shortened | User asked for a clean, simple write-up: threat model removed; abstract cut from 380 to 218 words (SUBMISSION.md updated to match); related work and method turned into tables; findings cut to 8 and negative results to 8 one-liners; the Discussion section and the paper list dropped (papers are linked in Related work); detailed round 1 and 2 tables moved to the appendix. README went from about 13,000 to about 9,800 words. No result changed |
 | 10:09 | Gate rule | "Improve, never regress": success may not fall by more than 2 points; tool-call validity may not fall by more than 2 points; and either success or tool calls on tasks both models solve must improve with a 95% interval that excludes zero. Applied per round (v1 vs base, then final vs v1). AgentTune's `DeploymentGate` must also approve |
 
 **Changes I made while building, for your review**
