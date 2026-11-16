@@ -1,6 +1,6 @@
 """Deployment gate: decides whether a new adapter replaces the currently deployed model.
 
-Rule chosen on 16 Nov ("improve, never regress"), applied once per round on the
+Rule ("improve, never regress"), applied once per round on the
 held-out tasks, with both models paired by task id:
   1. success rate does not fall by more than 2 points,
   2. tool-call validity does not fall by more than 2 points,

@@ -5,7 +5,7 @@ fallback prompt), the task, then alternating assistant tool calls and folded
 tool results, then the final answer. Hints used during repair are removed, so
 the student is trained on the prompt it gets at inference time.
 
-Target shape (decided 16 Nov): a tool-call turn is only the JSON call list. The
+Target shape: a tool-call turn is only the JSON call list. The
 final turn keeps the model's written working and ends at `</answer>`.
 `clean=False` keeps tool-call turns exactly as generated instead.
 """

@@ -1,9 +1,9 @@
 # Self-healing, shorter trajectories for Tiny Aya — build plan
 
-Lexsi hackathon, Track 3 (Agentic Fine-tuning). Written 16 Nov 2026, 08:50 IST.
+Lexsi hackathon, Track 3 (Agentic Fine-tuning). Started at 08:50 IST.
 **Hard deadline: 17:29 IST today** (Nov 15, 23:59 AoE). Target: submitted by ~15:00 IST.
 
-## 0. Status and decision log (last updated 16:27 IST)
+## 0. Status and decision log (last updated 16:40 IST)
 
 **Result.** On 400 held-out questions from companies never seen in training (3 runs each), task success is
 0.5% for base Tiny Aya, 25.2% after round 1, 30.4% after round 2 and **49.1% after round 3**. Round 3 is the
@@ -60,6 +60,7 @@ Total GPU spend **$18.05 of $20**. All GPU jobs are stopped.
 | 15:50 | H1 outcome wording | User decision: H1 is reported as "could not be tested cleanly", because the base model solved only 6 of 1,200 runs, so almost no task is solved by both models. The adapter-to-adapter number (3 to 4% at best, against the 15% target) stays in the same cell and in Findings 3 and 10 |
 | 15:58 | Write-up shortened | User asked for a clean, simple write-up: threat model removed; abstract cut from 380 to 218 words (SUBMISSION.md updated to match); related work and method turned into tables; findings cut to 8 and negative results to 8 one-liners; the Discussion section and the paper list dropped (papers are linked in Related work); detailed round 1 and 2 tables moved to the appendix. README went from about 13,000 to about 9,800 words. No result changed |
 | 16:27 | Article published; README synced to it | The write-up is live at https://huggingface.co/blog/Purusharth/efficient-healer with a thumbnail. The user made five edits there (declaration shortened, LinkedIn added, two sentences and "(same day)" removed); the README now carries the same text. Checked word by word: no other difference |
+| 16:40 | Date removed | User asked for the calendar date to be removed everywhere: taken out of the README, this file and two code comments. The article needs the same one-line edit by hand |
 | 10:09 | Gate rule | "Improve, never regress": success may not fall by more than 2 points; tool-call validity may not fall by more than 2 points; and either success or tool calls on tasks both models solve must improve with a 95% interval that excludes zero. Applied per round (v1 vs base, then final vs v1). AgentTune's `DeploymentGate` must also approve |
 
 **Changes I made while building, for your review**
