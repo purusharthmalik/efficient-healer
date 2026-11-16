@@ -506,7 +506,12 @@ training set (402 rows, same settings).
 | Redundant tool-call rate, set A | 0.069 | 0.019 | [−0.060, −0.039] |
 | Loop-free share, set A | 0.818 | 0.950 | |
 
-Untrained, Aya Expanse 8B solves 0 of 300 runs. Tiny Aya with round 3's larger set (49.1%) still beats it.
+Two things to read from this:
+
+- **The gain comes from our training data, not from the model's size.** Before training, Aya Expanse 8B
+  solved 0 of 300 runs.
+- **More data helped more than a bigger model.** Aya Expanse 8B was trained only on the round 2 set and
+  reaches 38.9%. Tiny Aya, trained on the larger round 3 set, reaches 49.1%.
 
 **DPO on step-level preference pairs.** 887 pairs came out of round 2; 480 were used, on top of the round 2
 adapter, for 11.5 minutes of training.
