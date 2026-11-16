@@ -10,8 +10,8 @@ Deadline: **17:29 IST today** (Nov 15, 23:59 AoE). You can submit more than once
 | Hackathon repos used | AgentTune, AuditKIT |
 | Base model | `CohereLabs/tiny-aya-global` |
 | Other models | `nvidia/Qwen3.6-35B-A3B-NVFP4` (teacher and failure classifier only) |
-| HF model collection | created when the repos go public; the link is added here |
-| HF dataset collection | created when the repos go public; the link is added here |
+| HF model collection | https://huggingface.co/collections/Purusharth/efficient-healer-models-6afaa8b6120d5e7cae162d33 |
+| HF dataset collection | https://huggingface.co/collections/Purusharth/efficient-healer-datasets-6afaa8b70386ac5f12a8f637 |
 | Write-up | https://github.com/purusharthmalik/efficient-healer (README) |
 | GitHub repo | https://github.com/purusharthmalik/efficient-healer |
 | Model repo | https://huggingface.co/Purusharth/tiny-aya-efficient-healer-lora |

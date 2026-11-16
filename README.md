@@ -550,6 +550,7 @@ is what more rounds are for. The student's weights are 6.7 GB in bf16; the teach
 - **Dataset:** [`Purusharth/efficient-healer-trajectories`](https://huggingface.co/datasets/Purusharth/efficient-healer-trajectories)
   — every rollout, failure label, repair hint, training set, preference pair, evaluation log, AuditKIT
   report and gate decision.
+- **Collections:** [Efficient Healer — models](https://huggingface.co/collections/Purusharth/efficient-healer-models-6afaa8b6120d5e7cae162d33) and [Efficient Healer — datasets](https://huggingface.co/collections/Purusharth/efficient-healer-datasets-6afaa8b70386ac5f12a8f637).
 - **Code:** this repository. `PLAN.md` is the build log.
 
 ## Repo layout and how to reproduce

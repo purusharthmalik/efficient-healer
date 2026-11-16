@@ -20,17 +20,14 @@ GPU spend **$8.57 of $20**. The GPU job is stopped.
 | 3 Classify and repair | done | Rules + AgentTune classifier, hinted retries, teacher |
 | 4 Train | done | Three LoRAs: all-token loss (failed, kept), round 1, round 2 |
 | 5 Evaluate and gate | done | AuditKIT on 100 + 400 held-out tasks; round 1 DEPLOY, round 2 HOLD then DEPLOY on confirmation |
-| 6 Ship | in progress | Adapters, data and cards are in two **private** HF repos; write-up is in `README.md`. Waiting for your review before anything is made public |
+| 6 Ship | public, form pending | Both HF repos, both collections and the GitHub repo are public (your yes at 12:40 IST). Only the submission form is left, and it is yours to send |
 
-**What is left (12:25 IST)**
+**What is left (12:45 IST)**
 
-| Step | Who | Ends about (IST) |
-|---|---|---|
-| Read `README.md` and the two private HF repos | you | — |
-| Say yes to going public | you | — |
-| Flip both HF repos and the GitHub repo public; create the two "Efficient Healer" collections | me, on your yes | 10 minutes after your yes |
-| Paste the write-up into a Hugging Face article (optional) | you | — |
-| Fill the submission form with your registered email | you (I give you every field) | deadline 17:29 IST |
+| Step | Who |
+|---|---|
+| Fill the form at `hackathon.lexsi.ai/submission` from `SUBMISSION.md`, with your registered email | you, before 17:29 IST |
+| Optional: paste `README.md` into a Hugging Face article | you |
 
 **Decisions made by you**
 
@@ -55,6 +52,7 @@ GPU spend **$8.57 of $20**. The GPU job is stopped.
 | 11:26 | Write-up | GitHub README in `purusharthmalik/efficient-healer` is the write-up; I also hand you the text for a Hugging Face article |
 | 11:26 | Team | Purusharth Malik, single-member team. LLM usage stated plainly |
 | 11:50 | Round 2 gate HOLD | One confirmatory evaluation on 400 fresh held-out-company questions; the same rule applied once; its answer stands. The rule itself is not changed |
+| 12:40 | Going public | Yes: both HF repos, the two collections and the GitHub repo made public |
 | 10:09 | Gate rule | "Improve, never regress": success may not fall by more than 2 points; tool-call validity may not fall by more than 2 points; and either success or tool calls on tasks both models solve must improve with a 95% interval that excludes zero. Applied per round (v1 vs base, then final vs v1). AgentTune's `DeploymentGate` must also approve |
 
 **Changes I made while building, for your review**
@@ -143,8 +141,13 @@ GPU spend **$8.57 of $20**. The GPU job is stopped.
 
 **Re-scored with the fixed verifier (10:07 IST):** held-out baseline unchanged (1 of 300 with the stop rule, 0 of 300 without). Round 1 collection 7 of 960 (was 8). Teacher pilot 33 of 40, 82.5% (was 35). Aya Expanse 8B with stop rule 0 of 40 (was 1).
 
-**Decision still open**
-- Your yes to make the two Hugging Face repos and the GitHub repo public (they are private now).
+**Public links (since 12:42 IST)**
+- Model repo: https://huggingface.co/Purusharth/tiny-aya-efficient-healer-lora
+- Dataset repo: https://huggingface.co/datasets/Purusharth/efficient-healer-trajectories
+- Model collection: https://huggingface.co/collections/Purusharth/efficient-healer-models-6afaa8b6120d5e7cae162d33
+- Dataset collection: https://huggingface.co/collections/Purusharth/efficient-healer-datasets-6afaa8b70386ac5f12a8f637
+- Code and write-up: https://github.com/purusharthmalik/efficient-healer
+- The command-queue repo `Purusharth/selfheal-ops` stays private.
 
 **Measured so far**
 - FinQA as shipped by AgentTune: 4,030 train rows, 522 val rows, 185 companies.
