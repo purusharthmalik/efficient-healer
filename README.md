@@ -162,6 +162,7 @@ AgentTune rollouts ──► trajectory JSONL ──► AuditKIT import ──�
 | Role | Model | Licence | Notes |
 |---|---|---|---|
 | Student (submitted) | `CohereLabs/tiny-aya-global`, 3.35B, bf16 | CC-BY-NC-4.0 | LoRA r=16 on attention projections |
+| Second student (further experiment) | `CohereLabs/aya-expanse-8b`, 8.0B, bf16 | CC-BY-NC-4.0 | LoRA r=16, trained on the round 2 set |
 | Teacher and failure classifier | `nvidia/Qwen3.6-35B-A3B-NVFP4` | Apache-2.0 | Supplementary only; never fine-tuned or submitted |
 
 Untrained Aya Expanse 8B is no better than untrained Tiny Aya (0 of 300 runs). Trained on the round 2 set it
