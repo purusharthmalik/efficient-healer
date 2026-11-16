@@ -4,3 +4,6 @@ infra/.job*
 runs/
 *.pyc
 .DS_Store
+
+# local notes, not for the public repo
+SUBMISSION.md
