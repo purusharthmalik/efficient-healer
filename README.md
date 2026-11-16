@@ -2,7 +2,7 @@
 
 **One-line claim.** A self-healing loop takes Tiny Aya from **0.5% to 49.1%** task success on financial tables of companies it never saw, in three rounds. A deployment gate decided every release, and held one adapter back until a larger test proved it.
 
-Lexsi Labs hackathon, Track 3 (Agentic Fine-tuning). Built on 16 November 2026.
+Lexsi Labs hackathon, Track 3 (Agentic Fine-tuning)
 
 ## Tracks and problem statements covered
 
