@@ -6,13 +6,19 @@ Lexsi Labs hackathon, Track 3 (Agentic Fine-tuning). Built on 16 November 2026.
 
 ## Tracks and problem statements covered
 
-- Track 3, **Self-healing agents**: detect failing runs, classify why they failed, generate corrective
-  training examples, retrain, and gate redeployment on measured accuracy.
-- Track 3, **Efficient trajectories**: cut redundant and failed tool calls without lowering success.
-- Track 3, **Data and database agents**: an agent that answers finance questions by querying a database,
-  rewarded on verified results.
-- Track 3, **Agentic distillation** (supporting): a stronger teacher's verified runs repair the tasks the
-  student cannot solve.
+All four are in Track 3 (Agentic Fine-tuning). The numbers are the order on the hackathon's tracks page.
+
+- Track 3, problem statement 8, **Self-healing agents** (main): detect failing runs, classify why they
+  failed, generate corrective training examples, retrain, and gate redeployment on measured accuracy.
+- Track 3, problem statement 2, **Efficient trajectories**: cut redundant and failed tool calls without
+  lowering success.
+- Track 3, problem statement 6, **Data and database agents**: an agent that answers finance questions by
+  querying a database, rewarded on verified results.
+- Track 3, problem statement 3, **Agentic distillation** (supporting): a stronger teacher's verified runs
+  repair the tasks the student cannot solve.
+
+**Content warning.** None needed. This write-up contains no harmful or NSFW text. The safety check uses
+XSTest prompts; none are reproduced here.
 
 ## Abstract
 
@@ -45,7 +51,7 @@ does not measurably change GSM8K accuracy or refusal behaviour on XSTest.
 The whole project cost about $18 of GPU time. All trajectories, labels, training sets, preference pairs
 and evaluation logs are public.
 
-## Headline before → after
+### Headline before → after
 
 400 held-out questions from 55 companies never seen in training, 3 runs each (1,200 runs per model):
 
@@ -64,10 +70,12 @@ and evaluation logs are public.
 - On a second held-out set of 400 fresh questions, used for the round 3 gate: 26.2% → 46.4%, +20.2 points [+16.8, +23.7].
 - Without any harness stop rule (first held-out set): output tokens per run 620 → 213 from base to round 2.
 
-**Base model and method in one line.** `CohereLabs/tiny-aya-global` (3.35B) + one LoRA (r=16), trained with
+### Base model and method in one line
+
+`CohereLabs/tiny-aya-global` (3.35B) + one LoRA (r=16), trained with
 AgentTune on verified trajectories selected by a three-round self-healing loop, evaluated with AuditKIT.
 
-## For judges: one minute
+### For judges: one minute
 
 > - **What:** a self-healing loop for a tool-calling agent, run for three rounds, with a gate before each deploy.
 > - **Kits:** AgentTune runs the rollouts, the FinQA tools, the failure classifier, the retraining trigger,
@@ -85,7 +93,7 @@ AgentTune on verified trajectories selected by a three-round self-healing loop, 
 >   preference pairs (+5 points), a retention and safety check.
 > - **Weakness:** half of the runs still fail. This is a method and a measured path, not a finished agent.
 
-## Problem and approach
+## Problem statement and approach
 
 A small open model that calls tools badly wastes money twice: it fails the task, and it burns tokens while
 failing. We wanted one cheap adapter that fixes both, and a rule that stops a bad adapter from shipping.
@@ -112,14 +120,137 @@ Two guards keep "shortest success" honest:
   turn writes a tool result itself. Without it, the shortest "success" is a lucky answer on invented data.
 - **Failures are never ranked by length.** A short wrong run is not a target.
 
-### Why this problem
+### Why this problem / real use case
 
 Finance teams ask questions that live in tables: changes, shares, growth rates. A closed frontier model
 answers them well but is priced per token; a 3B open model is cheap to host but unreliable at multi-step
 tool use. Closing that gap with a self-improving loop, and with a deployment gate a risk team can read, is
 the practical version of "small model, real work".
 
-## Hackathon repos used
+### Research questions
+
+1. Can a self-healing loop turn a 3B model that solves almost nothing into a usable database agent?
+2. Does training on the *shortest* verified run make the agent cheaper as well as better?
+3. Does a deployment gate with confidence intervals decide differently from a "no regression" gate?
+
+Short answers. (1) Partly: 0.5% → 49.1%, and half of the runs still fail. (2) Partly: repeated calls,
+loops and output tokens fall, but solved runs barely get shorter. (3) Yes: it held an adapter that
+AgentTune's shipped gate approved.
+
+### Pre-registered hypotheses
+
+Written in `PLAN.md` (section 1) before the first rollout. They were not registered with a third party;
+the build log is the only record.
+
+| Hypothesis | Outcome |
+|---|---|
+| H1. On held-out tasks both models solve, tool calls per task fall by at least 15% | **Not met.** Against the base model it cannot be tested, because the base model solves 6 runs. Between adapters the fall is small: round 1 → 2, 4.10 → 3.98, interval [−0.24, +0.00]; round 2 → 3, −0.16 [−0.25, −0.08] on set A and +0.01 [−0.07, +0.09] on set B |
+| H2. Held-out success does not fall, and we expect it to rise | **Met.** 0.5% → 25.2% → 30.4% → 49.1% |
+| H3. The redundant tool-call rate falls | **Met.** 0.126 → 0.108 → 0.069 → 0.051 |
+
+### Threat model
+
+What can go wrong in a loop that trains on its own output, and what stops it here:
+
+| Risk | Defence |
+|---|---|
+| A wrong run becomes a training target | A numeric verifier checks every target; the strict rate is reported beside the tolerant one |
+| A right answer without evidence (a lucky guess, or tool results the model invented) becomes a target | The evidence guard |
+| A worse adapter replaces a better one | The gate, with paired intervals, applied once per round |
+| Test questions leak into training | Company-disjoint split: 0 shared companies, 0 shared question texts |
+| The agent comes to depend on the repair hint | Hints are removed from every target |
+
+Not covered: prompt injection through table contents, and misuse of the SQL tool.
+
+### Related work
+
+No single part of this project is new. This section names the work each part comes from and says where we
+differ. It lists the work we know; it is not a systematic survey.
+
+**Training a model on its own verified outputs.** STaR
+([Zelikman et al., 2022](https://arxiv.org/abs/2203.14465)) samples rationales, keeps the ones that reach
+the right answer, fine-tunes and repeats. For problems the model fails, it retries with a hint. That is the
+closest ancestor of our loop. We differ in three ways: the unit is a multi-step tool trajectory, not a
+rationale; our hint is chosen by a failure label and never contains the answer, where STaR's hint is the
+answer itself; and a gate decides whether each round ships. Rejection-sampling fine-tuning
+([Yuan et al., 2023](https://arxiv.org/abs/2308.01825)) keeps many distinct correct samples per problem
+and finds that variety helps. We keep one, the shortest, because our target is cost as well as success; we
+did not test whether keeping several would be better. In reinforcement learning the same idea appears as
+self-imitation learning ([Oh et al., 2018](https://arxiv.org/abs/1806.05635)) and expert iteration
+([Anthony et al., 2017](https://arxiv.org/abs/1705.08439)), where a stronger expert makes targets for a
+cheaper policy and the improved policy feeds the next round.
+
+**Fine-tuning small models to be agents.** ReAct ([Yao et al., 2022](https://arxiv.org/abs/2210.03629))
+set the reason-then-act loop our agent runs. FireAct ([Chen et al., 2023](https://arxiv.org/abs/2310.05915)),
+AgentTuning ([Zeng et al., 2023](https://arxiv.org/abs/2310.12823)) and ToolLLM
+([Qin et al., 2023](https://arxiv.org/abs/2307.16789)) fine-tune open models on trajectories written by a
+stronger model, once. Toolformer ([Schick et al., 2023](https://arxiv.org/abs/2302.04761)) lets a model
+label its own tool calls and keeps the useful ones. Our round 1 is the same kind of teacher distillation
+([Hinton et al., 2015](https://arxiv.org/abs/1503.02531);
+[Hsieh et al., 2023](https://arxiv.org/abs/2305.02301)): 95% of its targets come from the teacher. What we
+add is the rounds after it, where the student's own verified runs replace the teacher's (62% of targets by
+round 3), and a count of how much teacher is still needed.
+
+**Repairing failures.** Reflexion ([Shinn et al., 2023](https://arxiv.org/abs/2303.11366)) feeds a
+written reflection on a failed attempt into the next attempt, without changing weights. Our hinted retry is
+a simpler form of this, and we then train the repaired run into the adapter so the hint is not needed at
+run time. Our result agrees with a limit of such feedback: hints repaired 0.5% of retries for the untrained
+model, which could not use them. DAgger ([Ross et al., 2010](https://arxiv.org/abs/1011.0686)) asks an
+expert to correct the states the learner actually reaches. Our teacher solves the failed task from the
+start instead, which is cheaper but teaches less about recovery. Our preference pairs are closer to
+DAgger: each sits at the first step where a failed run leaves a successful one.
+
+**Naming failures.** MAST ([Cemri et al., 2025](https://arxiv.org/abs/2503.13657)) builds a taxonomy of
+agent failure modes from annotated traces, and
+[Zhang et al. (2025)](https://arxiv.org/abs/2505.00212) show that finding the step that caused a failure
+automatically is hard even for strong models. We use AgentTune's five root causes and see the same
+weakness: our LLM labels agree with simple rules on 115 of 142 cases in round 1 and on 27 of 58 when the
+classifier's thinking is switched off. This is why the labels only choose hints and never enter a metric.
+
+**Where the loss goes.** [Shi et al. (2024)](https://arxiv.org/abs/2405.14394) report that putting loss on
+the instruction as well as the answer can help, mostly with long instructions, short answers and little
+data. Our data has that shape and we found the opposite: loss on all tokens gave 2.0% success, loss on the
+agent's turns gave 19.7%. A likely reason is what the extra tokens are. In our rows they are table data
+returned by tools, which the agent must read but never write.
+
+**Preference learning.** DPO ([Rafailov et al., 2023](https://arxiv.org/abs/2305.18290)) trains on pairs of
+a preferred and a rejected answer. It is normally applied to whole answers; we apply it to single agent
+steps.
+
+**Adapters and forgetting.** We train LoRA adapters ([Hu et al., 2021](https://arxiv.org/abs/2106.09685)).
+[Biderman et al. (2024)](https://arxiv.org/abs/2405.09673) find that LoRA forgets less of the base model
+than full fine-tuning. Our retention check fits that, on a small sample (100 items, round 2 adapter only).
+
+**Sampling several times.** Self-consistency ([Wang et al., 2022](https://arxiv.org/abs/2203.11171))
+samples several answers at run time and takes the majority. We sample k runs at training time for a
+different purpose: to measure how reliably a task is solved and to pick the cheapest correct run. The
+deployed agent runs once.
+
+**Deployment gates and statistics.** Releasing a model only after it beats the current one on held-out
+data is standard practice in production machine learning. AgentTune's
+[self-healing guide](https://agenttune.lexsi.ai/user-guide/self-healing/) describes the closed loop we
+follow (detect, classify, repair, retrain, gate). We changed two parts: repair produces whole verified
+trajectories, and the gate asks for an improvement whose interval excludes zero, where the shipped gate
+only asks for no regression. The intervals are paired bootstrap intervals
+([Koehn, 2004](https://aclanthology.org/W04-3250/)), resampled over tasks.
+
+**Task, benchmarks and models.** FinQA ([Chen et al., 2021](https://arxiv.org/abs/2109.00122)) introduced
+numerical questions over company financial reports. We use the tool-calling version shipped with AgentTune,
+where the agent queries the tables with SQL. The retention checks use GSM8K
+([Cobbe et al., 2021](https://arxiv.org/abs/2110.14168)), XSTest
+([Röttger et al., 2023](https://arxiv.org/abs/2308.01263)) and Global-MMLU
+([Singh et al., 2024](https://arxiv.org/abs/2412.03304)). The second student is Aya Expanse
+([Dang et al., 2024](https://arxiv.org/abs/2412.04261)).
+
+**What this project adds.** Three things together, measured on one small model: the *shortest* verified run
+as the training target, with an evidence guard so that "shortest" cannot mean "lucky"; repair that is
+directed by a failure label and checked by a verifier; and a gate that held twice when the evidence was
+thin. The idea of replaying the shortest correct sample is from our own earlier work (see the declaration
+below).
+
+## Hackathon repos (kits) used
+
+Track 3 asks for AgentTune and AuditKIT. CuratorKIT, AlignTune, SafeTune and CircuitKIT are not used.
 
 ### AgentTune (1.1.7)
 - **Rollout loop**: `create_rollout_fn` runs every trajectory (prompting, the Aya tool-prompt fallback,
@@ -157,7 +288,7 @@ AgentTune rollouts ──► trajectory JSONL ──► AuditKIT import ──�
       └──── new adapter ◄─── AgentTune create_distill_trainer (LoRA)
 ```
 
-## Models and licences
+## Models and licenses
 
 | Role | Model | Licence | Notes |
 |---|---|---|---|
@@ -165,22 +296,70 @@ AgentTune rollouts ──► trajectory JSONL ──► AuditKIT import ──�
 | Second student (further experiment) | `CohereLabs/aya-expanse-8b`, 8.0B, bf16 | CC-BY-NC-4.0 | LoRA r=16, trained on the round 2 set |
 | Teacher and failure classifier | `nvidia/Qwen3.6-35B-A3B-NVFP4` | Apache-2.0 | Supplementary only; never fine-tuned or submitted |
 
-Untrained Aya Expanse 8B is no better than untrained Tiny Aya (0 of 300 runs). Trained on the round 2 set it
-is a stronger student (see Further experiments); its adapter is published separately.
-The adapter inherits CC-BY-NC-4.0. AgentTune and AuditKIT are used under the Lexsi Labs Source Available
-License for non-commercial research.
+### Base Aya model
 
-## Data
+`CohereLabs/tiny-aya-global`, 3.35B parameters, loaded in bf16 with no quantization, licence CC-BY-NC-4.0.
+The adapter is a LoRA (r=16) on the attention projections and inherits that licence.
 
-- **Source**: FinQA as shipped by AgentTune (`rLLM/rLLM-FinQA-Dataset`): 4,030 train and 522 validation
-  questions over the financial tables of 185 companies, in English. Answers are numbers.
-- **Train pool**: 480 questions from the train split in rounds 1 and 2, grown to 1,400 in round 3 (the 480 are a prefix of the 1,400).
+One further experiment uses a second Cohere student, `CohereLabs/aya-expanse-8b` (8.0B, bf16, CC-BY-NC-4.0).
+Untrained, it is no better than untrained Tiny Aya (0 of 300 runs). Trained on the round 2 set it is a
+stronger student (see Further experiments); its adapter is published separately.
+
+### Teacher model
+
+`nvidia/Qwen3.6-35B-A3B-NVFP4` (Apache-2.0), a quantized 35B model. We chose it for two reasons. It fits on
+the same GPU beside the student, so one job can collect, repair and train. And it solves the task well
+enough to repair it: 77.9% of its runs passed the verifier on the tasks it was given. It writes repair
+runs and failure labels only. It is never fine-tuned, never submitted and never scores a result.
+
+### Closed-model baseline
+
+None was run. The cost section estimates what a closed API would cost on our token counts; its success
+rate is not measured.
+
+AgentTune and AuditKIT are used under the Lexsi Labs Source Available License for non-commercial research.
+
+## Datasets, benchmarks and licenses
+
+### Sources of data
+
+- **Task data**: FinQA as shipped by AgentTune (`rLLM/rLLM-FinQA-Dataset`, Apache-2.0): 4,030 train and
+  522 validation questions over the financial tables of 185 companies. Answers are numbers. It is an
+  existing public dataset; we wrote no synthetic questions.
+- **Training data**: trajectories made in this project by the student, by the student with a hint, and by
+  the teacher (distillation). Every one is checked by the verifier. Published as
+  `Purusharth/efficient-healer-trajectories` under CC-BY-NC-4.0.
+
+### Languages covered
+
+English only: the task data, the training data and every held-out set. The base model is multilingual, and
+we did not test other languages (the one multilingual check we ran did not produce a valid measurement).
+
+### Train / test splits, leak check
+
+- **Train pool**: 480 questions from the train split in rounds 1 and 2, grown to 1,400 in round 3 (the 480
+  are a prefix of the 1,400).
 - **Held-out sets**, all from 55 companies reserved for testing: a first set of 100 validation questions;
   set A, 400 fresh questions used once to confirm the round 2 gate; set B, 400 more fresh questions used
   for the round 3 gate. No question appears in two sets.
-- **Leak check**: the split is company-disjoint. 55 companies are reserved for the held-out set, so no
-  held-out table is ever seen in training. Shared companies: 0. Shared question texts: 0 (exact match).
-- **Trajectories**: all runs are published, successes and failures alike.
+- **Leak check**: the split is company-disjoint, so no held-out table is ever seen in training. Shared
+  companies: 0. Shared question texts: 0, by exact match.
+
+### General capability and safety benchmarks
+
+These are not the focus task. They were run once, as a retention check, to see whether fine-tuning broke
+something else: base Tiny Aya against the round 2 adapter, 100 samples each, in English.
+
+| Benchmark | What it checks | Licence | Status |
+|---|---|---|---|
+| GSM8K | Maths word problems, numeric match | MIT | Measured |
+| XSTest | Refusal of unsafe prompts, and over-refusal of safe prompts that look unsafe | CC-BY-4.0 | Measured |
+| Global-MMLU, five languages | Multilingual knowledge | Apache-2.0 | Run, but not a valid measurement: the answer extraction failed |
+
+### Tool / task environment and trajectories
+
+The environment is AgentTune's FinQA setup: a SQLite database of company tables and four tools (see Method).
+All runs are published, successes and failures alike.
 
 | Stage | Rollouts | What they are |
 |---|---|---|
@@ -216,6 +395,8 @@ runs still supply 62% (750 of 1,203).
 
 ## Metrics, and why these
 
+### List of metrics
+
 | Metric | Better | Why |
 |---|---|---|
 | Task success rate (tolerant) | higher | The answer matches the gold number after rounding to the gold's precision or within 0.5%, with percent and fraction treated as the same number |
@@ -231,10 +412,38 @@ runs still supply 62% (750 of 1,203).
 Every difference is reported with a 95% paired bootstrap interval. Rollouts of one task are not
 independent, so headline intervals resample tasks, not rollouts.
 
-**No LLM judge scores any result.** Success is decided by a numeric verifier. The only LLM-produced labels
-are failure root causes, which choose repair hints and never enter a metric.
+### Metrics for what should not get worse
 
-## Method and setup
+- **Tool-call validity** (AuditKIT). It is part of the gate: a fall of more than 2 points blocks
+  deployment. It is 1.000 for every adapter (0.997 for the base model).
+- **Strict success**, shown beside tolerant success, so a gain cannot come from the tolerance alone.
+- **GSM8K accuracy, XSTest refusal and XSTest over-refusal** (AuditKIT), base model against the round 2
+  adapter. Results are under Further experiments.
+
+### Checking the automatic judge
+
+**No LLM judge scores any result.** Success is decided by a numeric verifier. Two automatic parts could
+still be wrong, and this is what we did about each:
+
+- **The numeric verifier.** Every table shows the strict rate (AgentTune's exact match) beside the
+  tolerant rate. Reading accepted runs, we found one wrong rule (`4%` was accepted for a gold answer of
+  `0`), fixed it and re-scored every stored run. We did not measure agreement with human labels on a sample.
+- **The failure labels** (AgentTune's `FailureClassifier`, served by the teacher). They are not checked
+  against people. They agree with our rule labels on 115 of 142 cases in round 1, 33 of 45 in round 2 and
+  27 of 58 in round 3, where the classifier's thinking was off. They choose repair hints and never enter a
+  metric.
+
+### Agentic trajectory metrics
+
+Task success, tool-call validity, redundant-call rate and loop-free share are reported for every model;
+seconds per run for the base model and the round 1 and 2 adapters. Success is also split by question type
+(see Results). There is one task and one language, so there is no split by task or by language.
+
+## Method / experiments
+
+### Training setup and hyperparameters
+
+#### AgentTune
 
 **Task and tools.** Each task is a question about one company's financial tables. The agent has four
 tools from AgentTune: `list_tables(company_prefix)`, `get_table_schema(table_name)`,
@@ -282,8 +491,47 @@ TRL `DPOTrainer`) on step-level preference pairs. For a task with a verified run
 prompt is the conversation up to the first agent turn where the two differ; chosen and rejected are that
 one turn. LoRA r=8 on top of a merged round adapter, learning rate 2e-5, β 0.1, 1 epoch, batch 1 × 4.
 
-**Compute.** Hugging Face Jobs on RTX PRO 6000 Blackwell GPUs (96 GB), each holding the student server, the
-teacher server and training. Seeds: split seed 0, training seed 0; rollouts are sampled, not seeded.
+#### AuditKIT
+
+**Scoring.** Trajectories are imported with `episodes_from_agenttune` and scored by `ak.evaluate` on the
+`precomputed` backend, so no model is called at scoring time. Metrics are `ToolCallValidity`,
+`RedundantToolCalls` and `AgentLoopDetection` at their defaults, plus our task scorers.
+
+**Comparison.** `ak.compare(...).significance(...)` gives a paired bootstrap for each metric. Headline
+intervals come from our task-level paired bootstrap: 5,000 resamples of tasks, seed 0.
+
+**Retention check.** AuditKIT's GSM8K scenario (`numeric_match`), `ak.load_xstest()` with
+`ak.refusal_scorer()`, and `ak.load_global_mmlu()`. The model is served by vLLM and reached through
+AuditKIT's `api:` backend, in plain chat with no tools, 100 samples each.
+
+#### Compute
+
+Hugging Face Jobs on RTX PRO 6000 Blackwell GPUs (96 GB), each holding the student server, the teacher
+server and training.
+
+### Seeds
+
+Split seed 0, training seed 0, bootstrap seed 0. Rollouts are sampled at temperature 0.7 and are not
+seeded. Each configuration was trained once, so there is no variance across training seeds; the intervals
+cover the choice of tasks and the sampling of rollouts only.
+
+### Ablations
+
+Each row changes one thing. The full numbers are in Results.
+
+| What changed | What stayed the same | Result |
+|---|---|---|
+| Loss on all tokens → loss on the agent's turns | Same 393 rows, same LoRA settings | Held-out success 2.0% → 19.7% |
+| Harness stop rule on → off | Round 2 adapter, first held-out set | 24.0% with the rule, 25.0% without |
+| Harness stop rule off → on | Base model | Output tokens halve; success stays at 0–0.3% |
+| Student: Tiny Aya 3.35B → Aya Expanse 8B | Same round 2 training rows | 30.4% → 38.9% on set A |
+| DPO stage added to the round 2 adapter | Same test sets | 30.4% → 35.8% on set A; 26.2% → 29.8% on set B |
+| DPO stage added to the round 3 adapter | Same test set | 46.4% → 48.5% on set B; the interval includes zero |
+| Repair hint on the retry → no hint | Base model, 469 failing tasks | 0.5% of retries solved with a hint, 0.8% without |
+
+Two comparisons are not clean ablations. Round 2 → round 3 changes the pool (480 → 1,400 tasks) and the
+adapter that collects the runs at the same time. Classifier thinking on → off was a change between rounds,
+not a controlled run.
 
 ## Results
 
@@ -292,6 +540,26 @@ numeric verifier, not by a judge model. "Round 1 adapter" was trained on repairs
 rounds 1 and 2 below, "Final adapter" means the round 2 adapter, trained from the base model on the round 1
 adapter's own shortest verified runs plus repairs. Round 3 comes first because it is the deployed result;
 the two-round tables after it are the path that led there.
+
+### Same model, before vs after
+
+`CohereLabs/tiny-aya-global` without and with the deployed round 3 adapter, on held-out set A (400 tasks ×
+3 runs, stop rule on):
+
+| Metric | Before (base model) | After (round 3 adapter) |
+|---|---|---|
+| Runs solved | 6 of 1,200 (0.5%) | **589 of 1,200 (49.1%)** |
+| Runs solved, strict exact match | 0.3% | **29.8%** |
+| Tasks solved in all 3 runs | 0 of 400 | **143 of 400** |
+| Tasks solved in at least 1 run | 6 of 400 | **249 of 400** |
+| Redundant tool-call rate (AuditKIT) | 0.126 | **0.051** |
+| Loop-free share (AuditKIT) | 0.761 | **0.893** |
+| Tool-call validity (AuditKIT) | 0.997 | 1.000 |
+| Tool calls per run | 2.88 | 4.32 |
+
+The last row is higher after training: the base model gives up or invents results, and the adapter
+fetches the data. For comparison, the teacher (Qwen3.6-35B) solved 77.9% of its runs, but on a different
+task set, so the two numbers do not line up exactly.
 
 ### Round 3: the same loop on 1,400 tasks
 
@@ -553,7 +821,7 @@ answer extraction failed, so we do not report it as a measurement. The round 3 a
 row's tokens (201 of roughly 3,500), so an all-token loss spends 95% of its effort on text the agent never
 has to write.
 
-**2. After that, data through the same loop was the biggest lever.** Round 3 changed nothing but the pool
+**2. After that, data through the same loop was the biggest lever.** Round 3 kept the method and grew the pool
 (480 → 1,400 tasks) and gained 18.7 points on set A and 20.2 on set B. Tasks solved in all 3 runs more than
 doubled (61 → 143 of 400).
 
@@ -588,7 +856,7 @@ of the round 2 adapter in under 12 minutes, at the price of slightly longer runs
 0.126 → 0.108 → 0.069 → 0.051 and the loop-free share rises 0.76 → 0.89. Tool calls on tasks two adapters
 both solve fall only by 0.1 to 0.2, and not on every test set.
 
-## Negative results
+### What did not work (negative results)
 
 - **Loss on all tokens does not teach the agent's decisions.** Our first LoRA used AgentTune's default
   trainer, which trains on every token of the conversation. Loss fell from 1.74 to 0.30, yet held-out
@@ -625,7 +893,72 @@ both solve fall only by 0.1 to 0.2, and not on every test set.
   base model gives up or invents results instead of fetching data. Raw call count against the base model is
   not an efficiency win.
 
+### Sample inputs and outputs
+
+One solved run by the deployed adapter on a held-out company (set A, task `train-2497`, run 2): 3 tool
+calls, 113 output tokens, 4.4 seconds. Calls are shown in short form; the model writes them as
+`[{"tool_name": ..., "parameters": {...}}]`. Long tool results are cut with `…`.
+
+**Input** (the user turn; the system prompt lists the tools):
+
+> Company: newmont
+>
+> Question: For company `newmont`, here is the question: What is the spread between interest cost and
+> service cost for pension benefits in 2024?
+>
+> *(followed by AgentTune's suggested steps and the instruction to wrap the answer in `<answer>` tags)*
+
+| Step | What the agent wrote | What came back |
+|---|---|---|
+| 1 | `list_tables(company_prefix="newmont")` | The names of the company's tables: `newmont_nem_CurrentLongTermEmployeeBenefitLiabilitiesTableTextBlock, …` |
+| 2 | `get_table_schema(table_name="newmont_us_gaap_ScheduleOfNetBenefitCostsTableTextBlock")` | The columns and the first rows: `service cost 14 12 15 …`, `interest cost 17 17 19 …` |
+| 3 | `calculator(expression="17 - 14")` | `3.0` |
+| 4 | `The spread between interest cost and service cost for pension benefits in 2024 is 3.` `<answer>3</answer>` | Gold answer: `3`. Solved. |
+
+The agent skipped the SQL query because the schema call already showed the rows it needed. The base model
+on the same kind of question writes one call and then invents the tool's result. Every run, solved or
+failed, is in the dataset repository; this one is in `eval/confirm_r3.jsonl`.
+
+## Cost / ROI
+
+### Compute used
+
+Hugging Face Jobs, paid from the hackathon's $20 credit.
+
+| Part | GPU | Time | Cost |
+|---|---|---|---|
+| Setup and first smoke test | L40S | 37 min | $1.10 |
+| Rounds 1 and 2, evaluation, gates, confirmation | RTX PRO 6000 Blackwell | 2 h 43 min | $7.47 |
+| Round 3, DPO on round 3 | RTX PRO 6000 Blackwell | 1 h 55 min | $5.25 |
+| Aya Expanse 8B, retention check, DPO, re-tests | RTX PRO 6000 Blackwell | 1 h 32 min | $4.23 |
+| **Total** | | **6 h 47 min** | **$18.05** |
+
+That covers about 34,000 student rollouts, 3,100 teacher rollouts, five LoRA trainings (12 to 34 minutes
+each), two DPO runs (8 and 12 minutes) and all evaluation.
+
+### Cost per 1,000 agent runs vs API
+
+A run is a whole task: about 5 model calls and 4 tool calls.
+
+| Option | Throughput | Cost per 1,000 runs | Success | Cost per 1,000 solved tasks |
+|---|---|---|---|---|
+| Tiny Aya + round 3 adapter, one RTX PRO 6000 at $2.75/h | 522 runs/min, measured | $0.09 | 49.1%, measured | $0.18 |
+| Aya Expanse 8B + adapter, same GPU | 391 runs/min, measured | $0.12 | 38.9%, measured | $0.30 |
+| Teacher, Qwen3.6-35B NVFP4, same GPU | 148 runs/min, measured | $0.31 | 77.9%, measured on a different task set | $0.40 |
+| A closed API at an assumed $3 / $15 per million input / output tokens | not measured | $54, estimated | not measured | not measured |
+
+How the numbers are made: throughput was measured with 48 agents running at once and tool execution
+included, while the GPU also held other servers. The closed-API row is an estimate from our own token
+counts (about 17,000 input and 210 output tokens per run, no prompt caching) at assumed list prices; we did
+not run a closed model. The honest reading: per attempt the Tiny Aya adapter is about 3 times cheaper than
+the 35B teacher and hundreds of times cheaper than the API estimate. Per *solved* task it was only level
+with the teacher after round 2 (30% success, $0.32); after round 3 it is about half the teacher's cost. The
+economics improve directly with the success rate. The student's weights are 6.7 GB in bf16; the teacher's
+quantized weights are 23.5 GB.
+
 ## Limitations
+
+### Known weaknesses
 
 - **Half of the held-out runs still fail.** After valid tool calls, most failures are a wrong number: the
   wrong table or the wrong rows, on a task with about 50 look-alike tables per company.
@@ -653,7 +986,8 @@ both solve fall only by 0.1 to 0.2, and not on every test set.
 Several items from our first list are now done (a third round on more data, DPO, a retention check, a
 second student). What we would do next:
 
-**Planned approach**
+### Planned approach
+
 1. **Finish the pool.** About 1,400 train-split questions from the non-held-out companies are still
    unused. Round 3 showed that data through this loop is the strongest lever.
 2. **Combine what worked.** Aya Expanse 8B through the full three-round loop (it reached 38.9% on round 2's
@@ -667,143 +1001,40 @@ second student). What we would do next:
 6. **Retention checks done properly** with AuditKIT: Global-MMLU with a working answer extractor, MultiJail,
    and FinQA-style questions in other languages, on the deployed adapter.
 
-**Expected before / after (a forecast, not a measurement).** With the full pool, Aya Expanse 8B as the
+### Expected before / after
+
+A forecast, not a measurement. With the full pool, Aya Expanse 8B as the
 student and a DPO stage, we expect held-out success to move from 49% to 60–65%, the share of tasks solved
 in all 3 runs from 36% to about 50%, and tool calls per solved run from 3.9 toward 3.5.
 
-## Related work
-
-No single part of this project is new. This section names the work each part comes from and says where we
-differ. It lists the work we know; it is not a systematic survey.
-
-**Training a model on its own verified outputs.** STaR
-([Zelikman et al., 2022](https://arxiv.org/abs/2203.14465)) samples rationales, keeps the ones that reach
-the right answer, fine-tunes and repeats. For problems the model fails, it retries with a hint. That is the
-closest ancestor of our loop. We differ in three ways: the unit is a multi-step tool trajectory, not a
-rationale; our hint is chosen by a failure label and never contains the answer, where STaR's hint is the
-answer itself; and a gate decides whether each round ships. Rejection-sampling fine-tuning
-([Yuan et al., 2023](https://arxiv.org/abs/2308.01825)) keeps many distinct correct samples per problem
-and finds that variety helps. We keep one, the shortest, because our target is cost as well as success; we
-did not test whether keeping several would be better. In reinforcement learning the same idea appears as
-self-imitation learning ([Oh et al., 2018](https://arxiv.org/abs/1806.05635)) and expert iteration
-([Anthony et al., 2017](https://arxiv.org/abs/1705.08439)), where a stronger expert makes targets for a
-cheaper policy and the improved policy feeds the next round.
-
-**Fine-tuning small models to be agents.** ReAct ([Yao et al., 2022](https://arxiv.org/abs/2210.03629))
-set the reason-then-act loop our agent runs. FireAct ([Chen et al., 2023](https://arxiv.org/abs/2310.05915)),
-AgentTuning ([Zeng et al., 2023](https://arxiv.org/abs/2310.12823)) and ToolLLM
-([Qin et al., 2023](https://arxiv.org/abs/2307.16789)) fine-tune open models on trajectories written by a
-stronger model, once. Toolformer ([Schick et al., 2023](https://arxiv.org/abs/2302.04761)) lets a model
-label its own tool calls and keeps the useful ones. Our round 1 is the same kind of teacher distillation
-([Hinton et al., 2015](https://arxiv.org/abs/1503.02531);
-[Hsieh et al., 2023](https://arxiv.org/abs/2305.02301)): 95% of its targets come from the teacher. What we
-add is the rounds after it, where the student's own verified runs replace the teacher's (62% of targets by
-round 3), and a count of how much teacher is still needed.
-
-**Repairing failures.** Reflexion ([Shinn et al., 2023](https://arxiv.org/abs/2303.11366)) feeds a
-written reflection on a failed attempt into the next attempt, without changing weights. Our hinted retry is
-a simpler form of this, and we then train the repaired run into the adapter so the hint is not needed at
-run time. Our result agrees with a limit of such feedback: hints repaired 0.5% of retries for the untrained
-model, which could not use them. DAgger ([Ross et al., 2010](https://arxiv.org/abs/1011.0686)) asks an
-expert to correct the states the learner actually reaches. Our teacher solves the failed task from the
-start instead, which is cheaper but teaches less about recovery. Our preference pairs are closer to
-DAgger: each sits at the first step where a failed run leaves a successful one.
-
-**Naming failures.** MAST ([Cemri et al., 2025](https://arxiv.org/abs/2503.13657)) builds a taxonomy of
-agent failure modes from annotated traces, and
-[Zhang et al. (2025)](https://arxiv.org/abs/2505.00212) show that finding the step that caused a failure
-automatically is hard even for strong models. We use AgentTune's five root causes and see the same
-weakness: our LLM labels agree with simple rules on 115 of 142 cases in round 1 and on 27 of 58 when the
-classifier's thinking is switched off. This is why the labels only choose hints and never enter a metric.
-
-**Where the loss goes.** [Shi et al. (2024)](https://arxiv.org/abs/2405.14394) report that putting loss on
-the instruction as well as the answer can help, mostly with long instructions, short answers and little
-data. Our data has that shape and we found the opposite: loss on all tokens gave 2.0% success, loss on the
-agent's turns gave 19.7%. A likely reason is what the extra tokens are. In our rows they are table data
-returned by tools, which the agent must read but never write.
-
-**Preference learning.** DPO ([Rafailov et al., 2023](https://arxiv.org/abs/2305.18290)) trains on pairs of
-a preferred and a rejected answer. It is normally applied to whole answers; we apply it to single agent
-steps.
-
-**Adapters and forgetting.** We train LoRA adapters ([Hu et al., 2021](https://arxiv.org/abs/2106.09685)).
-[Biderman et al. (2024)](https://arxiv.org/abs/2405.09673) find that LoRA forgets less of the base model
-than full fine-tuning. Our retention check fits that, on a small sample (100 items, round 2 adapter only).
-
-**Sampling several times.** Self-consistency ([Wang et al., 2022](https://arxiv.org/abs/2203.11171))
-samples several answers at run time and takes the majority. We sample k runs at training time for a
-different purpose: to measure how reliably a task is solved and to pick the cheapest correct run. The
-deployed agent runs once.
-
-**Deployment gates and statistics.** Releasing a model only after it beats the current one on held-out
-data is standard practice in production machine learning. AgentTune's
-[self-healing guide](https://agenttune.lexsi.ai/user-guide/self-healing/) describes the closed loop we
-follow (detect, classify, repair, retrain, gate). We changed two parts: repair produces whole verified
-trajectories, and the gate asks for an improvement whose interval excludes zero, where the shipped gate
-only asks for no regression. The intervals are paired bootstrap intervals
-([Koehn, 2004](https://aclanthology.org/W04-3250/)), resampled over tasks.
-
-**Task, benchmarks and models.** FinQA ([Chen et al., 2021](https://arxiv.org/abs/2109.00122)) introduced
-numerical questions over company financial reports. We use the tool-calling version shipped with AgentTune,
-where the agent queries the tables with SQL. The retention checks use GSM8K
-([Cobbe et al., 2021](https://arxiv.org/abs/2110.14168)), XSTest
-([Röttger et al., 2023](https://arxiv.org/abs/2308.01263)) and Global-MMLU
-([Singh et al., 2024](https://arxiv.org/abs/2412.03304)). The second student is Aya Expanse
-([Dang et al., 2024](https://arxiv.org/abs/2412.04261)).
-
-**What this project adds.** Three things together, measured on one small model: the *shortest* verified run
-as the training target, with an evidence guard so that "shortest" cannot mean "lucky"; repair that is
-directed by a failure label and checked by a verifier; and a gate that held twice when the evidence was
-thin. The idea of replaying the shortest correct sample is from our own earlier work (see the declaration
-below).
-
-## Cost
-
-**Compute used.** Hugging Face Jobs, paid from the hackathon's $20 credit.
-
-| Part | GPU | Time | Cost |
-|---|---|---|---|
-| Setup and first smoke test | L40S | 37 min | $1.10 |
-| Rounds 1 and 2, evaluation, gates, confirmation | RTX PRO 6000 Blackwell | 2 h 43 min | $7.47 |
-| Round 3, DPO on round 3 | RTX PRO 6000 Blackwell | 1 h 55 min | $5.25 |
-| Aya Expanse 8B, retention check, DPO, re-tests | RTX PRO 6000 Blackwell | 1 h 32 min | $4.23 |
-| **Total** | | **6 h 47 min** | **$18.05** |
-
-That covers about 34,000 student rollouts, 3,100 teacher rollouts, five LoRA trainings (12 to 34 minutes
-each), two DPO runs (8 and 12 minutes) and all evaluation.
-
-**Cost per 1,000 agent runs** (a run is a whole task: about 5 model calls and 4 tool calls):
-
-| Option | Throughput | Cost per 1,000 runs | Success | Cost per 1,000 solved tasks |
-|---|---|---|---|---|
-| Tiny Aya + round 3 adapter, one RTX PRO 6000 at $2.75/h | 522 runs/min, measured | $0.09 | 49.1%, measured | $0.18 |
-| Aya Expanse 8B + adapter, same GPU | 391 runs/min, measured | $0.12 | 38.9%, measured | $0.30 |
-| Teacher, Qwen3.6-35B NVFP4, same GPU | 148 runs/min, measured | $0.31 | 77.9%, measured on a different task set | $0.40 |
-| A closed API at an assumed $3 / $15 per million input / output tokens | not measured | $54, estimated | not measured | not measured |
-
-How the numbers are made: throughput was measured with 48 agents running at once and tool execution
-included, while the GPU also held other servers. The closed-API row is an estimate from our own token
-counts (about 17,000 input and 210 output tokens per run, no prompt caching) at assumed list prices; we did
-not run a closed model. The honest reading: per attempt the Tiny Aya adapter is about 3 times cheaper than
-the 35B teacher and hundreds of times cheaper than the API estimate. Per *solved* task it was only level
-with the teacher after round 2 (30% success, $0.32); after round 3 it is about half the teacher's cost. The
-economics improve directly with the success rate. The student's weights are 6.7 GB in bf16; the teacher's
-quantized weights are 23.5 GB.
-
 ## Artifacts
 
-- **Model (Tiny Aya adapters):** [`Purusharth/tiny-aya-efficient-healer-lora`](https://huggingface.co/Purusharth/tiny-aya-efficient-healer-lora)
-  — the gate-approved round 3 adapter at the root; every adapter trained is in its own folder (`round1/`,
-  `round2/`, `round3/`, `round2_dpo/`, `round3_dpo/`, `negative_all_token_loss/`).
-- **Model (Aya Expanse 8B adapter):** [`Purusharth/aya-expanse-8b-efficient-healer-lora`](https://huggingface.co/Purusharth/aya-expanse-8b-efficient-healer-lora)
-  — trained on the round 2 set.
-- **Dataset:** [`Purusharth/efficient-healer-trajectories`](https://huggingface.co/datasets/Purusharth/efficient-healer-trajectories)
-  — every rollout, failure label, repair hint, training set, preference pair, evaluation log, AuditKIT
-  report and gate decision, for all three rounds and the further experiments.
-- **Collections:** [Efficient Healer — models](https://huggingface.co/collections/Purusharth/efficient-healer-models-6afaa8b6120d5e7cae162d33) and [Efficient Healer — datasets](https://huggingface.co/collections/Purusharth/efficient-healer-datasets-6afaa8b70386ac5f12a8f637).
-- **Code:** this repository. `PLAN.md` is the build log.
+- **HF datasets collection:** [Efficient Healer — datasets](https://huggingface.co/collections/Purusharth/efficient-healer-datasets-6afaa8b70386ac5f12a8f637).
+  It holds [`Purusharth/efficient-healer-trajectories`](https://huggingface.co/datasets/Purusharth/efficient-healer-trajectories):
+  every rollout with its tool calls, failure label, repair hint, training set, preference pair, evaluation
+  log, AuditKIT report and gate decision, for all three rounds and the further experiments.
+- **HF models collection:** [Efficient Healer — models](https://huggingface.co/collections/Purusharth/efficient-healer-models-6afaa8b6120d5e7cae162d33).
+  It holds two repositories:
+  - [`Purusharth/tiny-aya-efficient-healer-lora`](https://huggingface.co/Purusharth/tiny-aya-efficient-healer-lora):
+    the gate-approved round 3 adapter at the root; every adapter trained is in its own folder (`round1/`,
+    `round2/`, `round3/`, `round2_dpo/`, `round3_dpo/`, `negative_all_token_loss/`).
+  - [`Purusharth/aya-expanse-8b-efficient-healer-lora`](https://huggingface.co/Purusharth/aya-expanse-8b-efficient-healer-lora):
+    the Aya Expanse 8B adapter, trained on the round 2 set.
+- **GitHub repo:** [`purusharthmalik/efficient-healer`](https://github.com/purusharthmalik/efficient-healer).
+  `PLAN.md` there is the build log.
+- **Demo, video, slides:** none.
 
-## Repo layout and how to reproduce
+## Documentation and reproduction
+
+### Environment requirements
+
+Three Python environments, because their pins differ: AgentTune (`agenttune` 1.1.7, pinned in the setup
+script), vLLM (`vllm>=0.30`, the first with Cohere support) and AuditKIT
+(`auditkit[transformers,interop,jsonschema]==1.1.12`). `infra/cmds/000_setup.sh` builds all three.
+Hardware used: one RTX PRO 6000 Blackwell (96 GB) per job, which holds the student server, the teacher
+server and training together. We did not test smaller GPUs.
+
+### Repo layout and run instructions
 
 ```
 selfheal/
@@ -836,17 +1067,102 @@ tools/               result tables and the publishing script for the further exp
 PLAN.md              the build log: every decision, measurement and change, with times
 ```
 
-Three Python environments, because their pins differ: AgentTune (`agenttune` 1.1.7, pinned in the setup script),
-vLLM (`vllm>=0.30`, the first with Cohere support), AuditKIT (`auditkit[transformers,interop,jsonschema]==1.1.12`).
-`infra/cmds/000_setup.sh` builds all three. The steps then run in the order of `infra/cmds/`:
-setup, baseline evaluation, round 1 (collect, repair, train), round 2 (collect, repair, train), evaluation
-and gates, then round 3 and the further experiments (`e*.sh`). Hardware used: RTX PRO 6000 Blackwell (96 GB).
+To reproduce, start `infra/worker.sh` inside a GPU job, with `OPS_REPO` set to a private Hugging Face
+dataset repository of your own. Then queue the steps in the order of `infra/cmds/`, one at a time:
 
-## Declaration of work done outside the hackathon
+```bash
+infra/submit.sh 000_setup infra/cmds/000_setup.sh
+```
+
+The order is: setup, baseline evaluation, round 1 (collect, repair, train), round 2 (collect, repair,
+train), evaluation and gates, then round 3 and the further experiments (`e*.sh`). Each step uploads its
+log and results to the same repository.
+
+### Declaration of work done outside the hackathon
 
 The idea of replaying the shortest correct sample was noted in our earlier work on length-penalised
 reinforcement learning for math reasoning (October 2026, a different model and codebase). No code, data or
 weights from that work are used here. Everything in this repository was written on 16 November 2026.
+
+## Discussion / what we learned
+
+### Implications
+
+- **Check where the loss goes before anything else.** In agent data the agent's own tokens are a few
+  percent of a row. A standard trainer that puts loss on every token spends most of its effort on text the agent never writes.
+- **A self-healing loop needs its teacher mostly at the start.** The teacher's share of targets fell from
+  95% to 38% after one round and stayed there in round 3, where two thirds of the tasks were new.
+- **"Shortest correct run" removes waste more than it shortens runs.** Repeated calls, loops and output
+  tokens fell. Tool calls on solved tasks barely moved. If fewer steps on solved tasks is the goal,
+  selection alone is not enough.
+- **A gate with intervals is cheap and it changes decisions.** On 100 tasks the round 2 gain could not be
+  told from noise; on 400 it could. A "no regression" gate would not have seen the difference.
+- **The cheap levers were the large ones.** Loss placement cost nothing. More tasks through the same loop
+  cost GPU time in proportion. DPO and a bigger student each added less.
+
+### Future work
+
+The next steps are listed under "With more credits": finish the pool, run Aya Expanse 8B through the full
+loop, add a reinforcement-learning stage that targets tool calls on solved tasks, and run a held-out study
+where each test set is used for one decision only.
+
+## Teammates tagged
+
+Purusharth Malik — Hugging Face [`Purusharth`](https://huggingface.co/Purusharth), GitHub
+[`purusharthmalik`](https://github.com/purusharthmalik). Single-member team.
+
+### Author contributions
+
+Purusharth Malik: the idea; the choice of task, models, verifier rule, training loss and gate rule; and
+review of the results. The implementation was done with an AI coding assistant (see the LLM usage statement).
+
+### Acknowledgements
+
+Lexsi Labs for AgentTune, AuditKIT and the hackathon's $20 of Hugging Face credit, which paid for all the
+compute. Cohere Labs for the Aya models. The rLLM project for the FinQA dataset. NVIDIA for the quantized
+Qwen teacher model.
+
+## References
+
+**Repos, models and data**
+
+- AgentTune 1.1.7: <https://github.com/Lexsi-Labs/AgentTune>; self-healing guide:
+  <https://agenttune.lexsi.ai/user-guide/self-healing/>
+- AuditKIT 1.1.12: the `auditkit` package on PyPI
+- Student models: <https://huggingface.co/CohereLabs/tiny-aya-global>,
+  <https://huggingface.co/CohereLabs/aya-expanse-8b>
+- Teacher model: <https://huggingface.co/nvidia/Qwen3.6-35B-A3B-NVFP4>
+- Task data: <https://huggingface.co/datasets/rLLM/rLLM-FinQA-Dataset>
+- vLLM 0.33, TRL 1.7.1 and PEFT, for serving and training
+
+**Papers**
+
+1. Anthony et al. (2017). Thinking Fast and Slow with Deep Learning and Tree Search. [arXiv:1705.08439](https://arxiv.org/abs/1705.08439)
+2. Biderman et al. (2024). LoRA Learns Less and Forgets Less. [arXiv:2405.09673](https://arxiv.org/abs/2405.09673)
+3. Cemri et al. (2025). Why Do Multi-Agent LLM Systems Fail? [arXiv:2503.13657](https://arxiv.org/abs/2503.13657)
+4. B. Chen et al. (2023). FireAct: Toward Language Agent Fine-tuning. [arXiv:2310.05915](https://arxiv.org/abs/2310.05915)
+5. Z. Chen et al. (2021). FinQA: A Dataset of Numerical Reasoning over Financial Data. [arXiv:2109.00122](https://arxiv.org/abs/2109.00122)
+6. Cobbe et al. (2021). Training Verifiers to Solve Math Word Problems. [arXiv:2110.14168](https://arxiv.org/abs/2110.14168)
+7. Dang et al. (2024). Aya Expanse: Combining Research Breakthroughs for a New Multilingual Frontier. [arXiv:2412.04261](https://arxiv.org/abs/2412.04261)
+8. Hinton et al. (2015). Distilling the Knowledge in a Neural Network. [arXiv:1503.02531](https://arxiv.org/abs/1503.02531)
+9. Hsieh et al. (2023). Distilling Step-by-Step! Outperforming Larger Language Models with Less Training Data and Smaller Model Sizes. [arXiv:2305.02301](https://arxiv.org/abs/2305.02301)
+10. Hu et al. (2021). LoRA: Low-Rank Adaptation of Large Language Models. [arXiv:2106.09685](https://arxiv.org/abs/2106.09685)
+11. Koehn (2004). Statistical Significance Tests for Machine Translation Evaluation. EMNLP. [ACL Anthology W04-3250](https://aclanthology.org/W04-3250/)
+12. Oh et al. (2018). Self-Imitation Learning. [arXiv:1806.05635](https://arxiv.org/abs/1806.05635)
+13. Qin et al. (2023). ToolLLM: Facilitating Large Language Models to Master 16000+ Real-world APIs. [arXiv:2307.16789](https://arxiv.org/abs/2307.16789)
+14. Rafailov et al. (2023). Direct Preference Optimization: Your Language Model is Secretly a Reward Model. [arXiv:2305.18290](https://arxiv.org/abs/2305.18290)
+15. Ross et al. (2010). A Reduction of Imitation Learning and Structured Prediction to No-Regret Online Learning. [arXiv:1011.0686](https://arxiv.org/abs/1011.0686)
+16. Röttger et al. (2023). XSTest: A Test Suite for Identifying Exaggerated Safety Behaviours in Large Language Models. [arXiv:2308.01263](https://arxiv.org/abs/2308.01263)
+17. Schick et al. (2023). Toolformer: Language Models Can Teach Themselves to Use Tools. [arXiv:2302.04761](https://arxiv.org/abs/2302.04761)
+18. Shi et al. (2024). Instruction Tuning With Loss Over Instructions. [arXiv:2405.14394](https://arxiv.org/abs/2405.14394)
+19. Shinn et al. (2023). Reflexion: Language Agents with Verbal Reinforcement Learning. [arXiv:2303.11366](https://arxiv.org/abs/2303.11366)
+20. Singh et al. (2024). Global MMLU: Understanding and Addressing Cultural and Linguistic Biases in Multilingual Evaluation. [arXiv:2412.03304](https://arxiv.org/abs/2412.03304)
+21. Wang et al. (2022). Self-Consistency Improves Chain of Thought Reasoning in Language Models. [arXiv:2203.11171](https://arxiv.org/abs/2203.11171)
+22. Yao et al. (2022). ReAct: Synergizing Reasoning and Acting in Language Models. [arXiv:2210.03629](https://arxiv.org/abs/2210.03629)
+23. Yuan et al. (2023). Scaling Relationship on Learning Mathematical Reasoning with Large Language Models. [arXiv:2308.01825](https://arxiv.org/abs/2308.01825)
+24. Zelikman et al. (2022). STaR: Bootstrapping Reasoning With Reasoning. [arXiv:2203.14465](https://arxiv.org/abs/2203.14465)
+25. Zeng et al. (2023). AgentTuning: Enabling Generalized Agent Abilities for LLMs. [arXiv:2310.12823](https://arxiv.org/abs/2310.12823)
+26. Zhang et al. (2025). Which Agent Causes Task Failures and When? On Automated Failure Attribution of LLM Multi-Agent Systems. [arXiv:2505.00212](https://arxiv.org/abs/2505.00212)
 
 ## LLM usage statement
 
@@ -855,8 +1171,51 @@ session, directed by the author. The author chose the idea, the task, the models
 training loss, the gate rule and every other design decision; `PLAN.md` logs each one with its time. The
 assistant proposed options, implemented, ran and debugged. No LLM judged any result in the tables.
 
-## Team
+Approximate portion generated by AI: all of the code and nearly all of the write-up text.
 
-Purusharth Malik — Hugging Face [`Purusharth`](https://huggingface.co/Purusharth), GitHub
-[`purusharthmalik`](https://github.com/purusharthmalik). Single-member team: idea, design decisions and
-review.
+## Changelog
+
+All versions are from 16 November 2026.
+
+- **Version 1** (the two-round write-up): two rounds on 480 tasks. Headline 0.5% → 30.4% on held-out set A.
+- **Version 2**: added round 3 on a 1,400-task pool (49.1%), Aya Expanse 8B as a second student, DPO, and
+  a retention and safety check. The title, the one-line claim and the abstract changed. The deployed
+  adapter changed from round 2 to round 3. The two-round results are unchanged.
+- **Version 3** (this one): added related work, research questions, the pre-registered hypotheses with
+  their outcomes, a threat model, an ablation table, a sample run, references and an appendix. Sections
+  were reordered to the hackathon's recommended layout. No result changed.
+
+## Appendix
+
+### Prompts
+
+**System prompt.** Our text is below; AgentTune adds the tool schemas and the call format to it.
+
+> You are a financial analyst. Answer questions about a company's financial tables by calling the tools.
+> Call one tool at a time and wait for its result. When you know the answer, reply with only the final
+> number inside `<answer></answer>` tags.
+
+**User turn.** AgentTune's FinQA prompt, shown in "Sample inputs and outputs".
+
+**Repair hints.** One sentence, added to the system prompt for the retry only and removed before a
+repaired run becomes a training target. A rule label picks the hint when the run has a format failure;
+otherwise the LLM label picks it.
+
+| Failure label | Hint |
+|---|---|
+| `loop_collapse` (rule or LLM) | Do not repeat a tool call you already made. Use the result you already have. |
+| `no_answer_tag` (rule) | When you have the number, reply with only `<answer>NUMBER</answer>`. |
+| `step_cap` (rule) | Use at most four tool calls, then reply with only `<answer>NUMBER</answer>`. |
+| `tool_errors` (rule), `wrong_tool` (LLM) | Use only the listed tools and their exact argument names. Read the table schema before you query it. |
+| `no_tool_evidence` (rule) | Answer only from tool results. Look the values up before you answer. |
+| `wrong_routing` (LLM) | List the company's tables first and choose the table whose name matches the question's topic. |
+| `incomplete_reasoning` (LLM, and the fallback) | Query the exact rows and years the question asks about, then compute the final number with the calculator. |
+| `hallucinated_output` (LLM) | Answer only from tool results. Never guess a table name or a value. |
+
+**Judge rubric.** None. No LLM judge is used.
+
+### Extra tables
+
+The per-run logs, AuditKIT reports and gate decisions behind every table are in the dataset repository
+under `eval/`. The training sets, failure labels and hints of each round are under `round1/`, `round2/`
+and `round3/`.
