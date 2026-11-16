@@ -144,7 +144,7 @@ the build log is the only record.
 
 | Hypothesis | Outcome |
 |---|---|
-| H1. On held-out tasks both models solve, tool calls per task fall by at least 15% | **Not met.** Against the base model it cannot be tested, because the base model solves 6 runs. Between adapters the fall is small: round 1 → 2, 4.10 → 3.98, interval [−0.24, +0.00]; round 2 → 3, −0.16 [−0.25, −0.08] on set A and +0.01 [−0.07, +0.09] on set B |
+| H1. On held-out tasks both models solve, tool calls per task fall by at least 15% | **Could not be tested cleanly.** The base model solved only 6 of 1,200 runs, so at most 6 of the 400 tasks are solved by both models and the comparison is too noisy to read. Between adapters, where it can be measured, the fall is 3 to 4% at best (Findings 3 and 10) |
 | H2. Held-out success does not fall, and we expect it to rise | **Met.** 0.5% → 25.2% → 30.4% → 49.1% |
 | H3. The redundant tool-call rate falls | **Met.** 0.126 → 0.108 → 0.069 → 0.051 |
 
