@@ -121,7 +121,7 @@ the practical version of "small model, real work".
 
 ### Pre-registered hypotheses
 
-Written in `PLAN.md` before the first rollout. Not registered with a third party.
+Written down before the first rollout. Not registered with a third party.
 
 | Hypothesis | Outcome |
 |---|---|
@@ -680,7 +680,6 @@ about 50%, and tool calls per solved run from 3.9 toward 3.5.
   - [`Purusharth/aya-expanse-8b-efficient-healer-lora`](https://huggingface.co/Purusharth/aya-expanse-8b-efficient-healer-lora):
     the Aya Expanse 8B adapter, trained on the round 2 set.
 - **GitHub repo:** [`purusharthmalik/efficient-healer`](https://github.com/purusharthmalik/efficient-healer).
-  `PLAN.md` there is the build log.
 - **Demo, video, slides:** none.
 
 ## Documentation and reproduction
@@ -723,7 +722,6 @@ infra/
   worker.sh          runs queued steps inside one long Hugging Face Job
   cmds/              one script per pipeline step, in run order (e*.sh are the further experiments)
 tools/               result tables and the publishing script for the further experiments
-PLAN.md              the build log: every decision, measurement and change, with times
 ```
 
 To reproduce, start `infra/worker.sh` inside a GPU job, with `OPS_REPO` set to a private Hugging Face
