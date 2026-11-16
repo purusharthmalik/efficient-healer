@@ -164,7 +164,8 @@ AgentTune rollouts ──► trajectory JSONL ──► AuditKIT import ──�
 | Student (submitted) | `CohereLabs/tiny-aya-global`, 3.35B, bf16 | CC-BY-NC-4.0 | LoRA r=16 on attention projections |
 | Teacher and failure classifier | `nvidia/Qwen3.6-35B-A3B-NVFP4` | Apache-2.0 | Supplementary only; never fine-tuned or submitted |
 
-Aya Expanse 8B was measured as an alternative student and gave no gain (see Negative results).
+Untrained Aya Expanse 8B is no better than untrained Tiny Aya (0 of 300 runs). Trained on the round 2 set it
+is a stronger student (see Further experiments); its adapter is published separately.
 The adapter inherits CC-BY-NC-4.0. AgentTune and AuditKIT are used under the Lexsi Labs Source Available
 License for non-commercial research.
 
@@ -324,7 +325,11 @@ earlier decision had touched); set A is shown so the number sits beside rounds 1
 the success gain's interval is above zero. AgentTune's `DeploymentGate` also approved. The round 3 adapter
 is the deployed one.
 
-### Held-out results with the harness stop rule (100 tasks x 3 runs)
+### Rounds 1 and 2: the path to round 3
+
+In the tables of this part, "Final adapter" is the round 2 adapter.
+
+### First held-out set with the harness stop rule (100 tasks x 3 runs)
 
 | Metric | Base Tiny Aya | Round 1 adapter | Final adapter |
 |---|---|---|---|
@@ -338,7 +343,7 @@ is the deployed one.
 | Seconds per run | 4.6 | 5.7 | 6.2 |
 | Runs with no `<answer>` tag | 117 of 300 | 31 of 300 | 17 of 300 |
 
-### Held-out results without the harness stop rule (100 tasks x 3 runs)
+### First held-out set without the harness stop rule (100 tasks x 3 runs)
 
 | Metric | Base Tiny Aya | Round 1 adapter | Final adapter |
 |---|---|---|---|
@@ -425,7 +430,7 @@ is the deployed one.
 | Mix Shift | 12 | 0 (0%) | 4 (33%) | 1 (8%) |
 | Financial Ratio - Earnings Per Share | 3 | 0 (0%) | 3 (100%) | 1 (33%) |
 
-### What the gates decided
+### What the gates decided in rounds 1 and 2
 
 **Round 1 (round 1 adapter vs base): DEPLOY.** Success rose by 19.3 points, 95% interval [+13.7, +25.7].
 Tool-call validity did not fall. AgentTune's `DeploymentGate` also approved.
@@ -441,10 +446,11 @@ not regress.
 **Round 2, confirmatory set: DEPLOY.** Rather than change the rule, we ran one pre-declared confirmation: 400
 fresh questions from the same 55 held-out companies (1,244 were available and unused), 3 runs each, the
 same rule applied once, its answer accepted either way. The success gain is +5.2 points with a 95% interval
-of [+2.5, +8.1], above zero, so the final adapter is the deployed one. On this set the round 1 gate also
+of [+2.5, +8.1], above zero, so the round 2 adapter replaced round 1 as the deployed model (round 3 later
+replaced it in turn). On this set the round 1 gate also
 passes again (+24.7 points [+21.4, +28.1]).
 
-### Confirmatory held-out set (400 fresh tasks × 3 runs, stop rule on)
+### Held-out set A, the confirmatory set (400 fresh tasks × 3 runs, stop rule on)
 
 | Metric | Base Tiny Aya | Round 1 adapter | Final adapter |
 |---|---|---|---|
@@ -488,7 +494,7 @@ passes again (+24.7 points [+21.4, +28.1]).
 | Redundant tool-call rate (AuditKIT) | 0.126 | 0.069 | -0.057 [-0.073, -0.042] |
 | Loop-free share (AuditKIT) | 0.761 | 0.818 | +0.058 [+0.026, +0.089] |
 
-### Further experiments (same day, after the three rounds were designed)
+### Further experiments (same day)
 
 **Aya Expanse 8B as the student.** We trained a LoRA on `CohereLabs/aya-expanse-8b` with the unchanged
 round 2 training set (402 rows, same settings) to ask whether the loop's data transfers and whether
@@ -592,8 +598,8 @@ both solve fall only by 0.1 to 0.2, and not on every test set.
   59 of 300 (19.7%) and train-task success to 505 of 1,920 (26.3%).
 - **Hints alone do not repair an untrained model.** Label-chosen hints on 469 failing tasks: 10 of 1,876
   retries solved (0.5%), no better than without a hint (0.8%).
-- **A bigger Cohere student did not help.** Untrained Aya Expanse 8B solved 0 of 40 pilot rollouts, the
-  same as Tiny Aya, at twice the latency.
+- **A bigger Cohere student does not help untrained.** Aya Expanse 8B solved 0 of 40 pilot rollouts and
+  0 of 300 on set A before training, the same as Tiny Aya. (After training on the loop's data it does help.)
 - **A harness stop rule alone does not help success.** It halves output tokens for the base model
   (621 → 208 per run) but success stays at 0–0.3%.
 - **"Shortest success" picks lucky runs unless guarded.** One base-model "success" made a single
