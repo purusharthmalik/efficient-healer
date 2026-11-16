@@ -13,7 +13,7 @@ Deadline: **17:29 IST today** (Nov 15, 23:59 AoE). You can submit more than once
 | Other models | `nvidia/Qwen3.6-35B-A3B-NVFP4` (teacher and failure classifier only) |
 | HF model collection | https://huggingface.co/collections/Purusharth/efficient-healer-models-6afaa8b6120d5e7cae162d33 |
 | HF dataset collection | https://huggingface.co/collections/Purusharth/efficient-healer-datasets-6afaa8b70386ac5f12a8f637 |
-| Write-up | https://github.com/purusharthmalik/efficient-healer (README) |
+| Write-up | https://huggingface.co/blog/Purusharth/efficient-healer (Hugging Face article; the GitHub README has the same text) |
 | GitHub repo | https://github.com/purusharthmalik/efficient-healer |
 | Model repo (Tiny Aya) | https://huggingface.co/Purusharth/tiny-aya-efficient-healer-lora |
 | Model repo (Aya Expanse 8B) | https://huggingface.co/Purusharth/aya-expanse-8b-efficient-healer-lora |
@@ -48,7 +48,6 @@ Three things mattered most: putting the loss on the agent's own turns (2% → 19
 tasks through the same loop (+18.7 points), and a gate that held one adapter back until a larger test
 proved its gain. The project cost about $18 of GPU time, and all data is public.
 
-## For a Hugging Face article (optional)
+## Hugging Face article
 
-Open https://huggingface.co/new-blog while signed in as `Purusharth`, paste the whole of `README.md`, and
-publish. The README is written to stand alone as the article.
+Published: https://huggingface.co/blog/Purusharth/efficient-healer. Its text matches the GitHub README.
