@@ -121,8 +121,6 @@ the practical version of "small model, real work".
 
 ### Pre-registered hypotheses
 
-Written down before the first rollout. Not registered with a third party.
-
 | Hypothesis | Outcome |
 |---|---|
 | H1. On held-out tasks both models solve, tool calls per task fall by at least 15% | **Could not be tested cleanly.** The base model solved only 6 of 1,200 runs, so at most 6 of the 400 tasks are solved by both models and the comparison is too noisy to read. Between adapters, where it can be measured, the fall is 3 to 4% at best (Finding 7) |
